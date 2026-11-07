@@ -223,12 +223,21 @@ static void update_sr(AC97LinkState *s, AC97BusMasterRegs *r, uint32_t new_sr)
                 any = 1;
             }
         }
+        /*
+         * SO reports in GLOB_STA bit 4 (GS_SOINT): the Xbox kernel's ACI
+         * interrupt handler reads GLOB_STA & 0x51 and maps PO to 0x40 and
+         * SO to 0x10. Without the bit it never acks SO and the line storms.
+         */
+        uint32_t mask = 0;
         if ((size_t)(r - s->bm_regs) < ARRAY_SIZE(masks)) {
-            if (level) {
-                s->glob_sta |= masks[r - s->bm_regs];
-            } else {
-                s->glob_sta &= ~masks[r - s->bm_regs];
-            }
+            mask = masks[r - s->bm_regs];
+        } else if (r - s->bm_regs == SO_INDEX) {
+            mask = GS_SOINT;
+        }
+        if (level) {
+            s->glob_sta |= mask;
+        } else {
+            s->glob_sta &= ~mask;
         }
         if (any) {
             pci_irq_assert(s->pci_dev);
