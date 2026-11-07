@@ -48,6 +48,7 @@ typedef struct AC97BusMasterRegs {
     uint8_t cr;                 /* rw 0, control register */
     unsigned int bd_valid;
     BD bd;
+    bool drained;               /* halted after its last valid buffer */
 } AC97BusMasterRegs;
 
 #define TYPE_AC97 "AC97"

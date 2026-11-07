@@ -293,6 +293,7 @@ static void reset_bm_regs(AC97LinkState *s, AC97BusMasterRegs *r)
     r->bdbar = 0;
     r->civ = 0;
     r->lvi = 0;
+    r->drained = false;
     /** todo do we need to do that? */
     update_sr(s, r, SR_DCH);
     r->picb = 0;
@@ -854,6 +855,23 @@ static void nabm_writeb(void *opaque, uint32_t addr, uint32_t val)
             r->civ = r->piv;
             r->piv = (r->piv + 1) % 32;
             fetch_bd(s, r);
+            r->lvi = val % 32;
+#ifdef XBOX
+            /*
+             * An engine that ran dry on its last valid buffer and is
+             * restarted by a new LVI gives one BCIS-only interrupt.
+             * The nxdk-style XAudio driver (used by XBL Dash) skips
+             * the first BCIS after an LVBCI status and only then
+             * counts buffers; without this its buffer counts never
+             * fall after an underrun and SDL waits forever on close.
+             */
+            if (r->drained) {
+                r->drained = false;
+                if (!getenv("XEMU_AC97_NO_RESTART_BCIS")) {
+                    update_sr(s, r, r->sr | SR_BCIS);
+                }
+            }
+#endif
         }
         r->lvi = val % 32;
         dolog("LVI[%d] <- 0x%x", GET_BM(addr), val);
@@ -1165,6 +1183,7 @@ static void transfer_audio(AC97LinkState *s, int index, int elapsed)
 
                 new_sr |= SR_LVBCI | SR_DCH | SR_CELV;
                 stop = 1;
+                r->drained = true;
                 s->bup_flag = (r->bd.ctl_len & BD_BUP) ? BUP_LAST : 0;
             } else {
                 r->civ = r->piv;
