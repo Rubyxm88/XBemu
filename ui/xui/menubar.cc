@@ -569,6 +569,24 @@ static void PlayMenu()
     if (games.empty() && ImGui::MenuItem("No games yet: Open Games Folder")) {
         xemu_xbcheck_open_games_folder();
     }
+    // The XBL Dashboard can install a game from the disc in its tray (Disc
+    // tile, Store): put the disc in without restarting the console
+    if (!games.empty() &&
+        xemu_xbonline_main_dashboard() == XBONLINE_DASH_XBL &&
+        ImGui::BeginMenu("Insert in Tray")) {
+        for (const auto &[label, path] : games) {
+            if (ImGui::MenuItem(label.c_str())) {
+                ActionLoadDiscFile(path.c_str());
+            }
+        }
+        ImGui::EndMenu();
+    }
+    if (!games.empty() &&
+        xemu_xbonline_main_dashboard() == XBONLINE_DASH_XBL) {
+        MenuItemHelp("Puts the disc in the drive without starting it, so the "
+                     "XBL Dashboard can see it and install the game from "
+                     "it.");
+    }
     if (ImGui::MenuItem("Load Disc...", SHORTCUT_MENU_TEXT(O))) ActionLoadDisc();
     if (ImGui::MenuItem("Eject Disc", SHORTCUT_MENU_TEXT(E))) ActionEjectDisc();
 
