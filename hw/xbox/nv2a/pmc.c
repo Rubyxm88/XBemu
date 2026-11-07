@@ -66,6 +66,25 @@ void pmc_write(void *opaque, hwaddr addr, uint64_t val, unsigned int size)
         d->pmc.enabled_interrupts = val;
         nv2a_update_irq(d);
         break;
+    case NV_PMC_ENABLE:
+        /*
+         * Turning PFIFO off resets it. A title launched after an nxdk
+         * program (XBL Dash) toggles this and then writes DMA_PUT = 0,
+         * expecting DMA_GET and the pusher state to be back at reset.
+         */
+        if (!(val & NV_PMC_ENABLE_PFIFO)) {
+            /* Only the DMA pusher state; the rest is left as it was. */
+            qemu_mutex_lock(&d->pfifo.lock);
+            d->pfifo.regs[NV_PFIFO_CACHE1_PUSH0] = 0;
+            d->pfifo.regs[NV_PFIFO_CACHE1_DMA_PUSH] = 0;
+            d->pfifo.regs[NV_PFIFO_CACHE1_DMA_STATE] = 0;
+            d->pfifo.regs[NV_PFIFO_CACHE1_DMA_PUT] = 0;
+            d->pfifo.regs[NV_PFIFO_CACHE1_DMA_GET] = 0;
+            d->pfifo.regs[NV_PFIFO_CACHE1_DMA_DCOUNT] = 0;
+            d->pfifo.regs[NV_PFIFO_CACHE1_DMA_SUBROUTINE] = 0;
+            qemu_mutex_unlock(&d->pfifo.lock);
+        }
+        break;
     default:
         break;
     }
