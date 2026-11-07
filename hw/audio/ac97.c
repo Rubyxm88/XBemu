@@ -207,6 +207,38 @@ static void update_sr(AC97LinkState *s, AC97BusMasterRegs *r, uint32_t new_sr)
         return;
     }
 
+#ifdef XBOX
+    /*
+     * The Xbox runs the analog (PO) and digital (SO) engines side by side on
+     * one IRQ, and SO has no bit in glob_sta. Keep the line up while any
+     * engine still has an enabled interrupt pending, so acking one engine
+     * does not drop the other's.
+     */
+    {
+        int i, any = 0;
+        for (i = 0; i < LAST_INDEX; i++) {
+            AC97BusMasterRegs *b = &s->bm_regs[i];
+            if (((b->sr & SR_LVBCI) && (b->cr & CR_LVBIE)) ||
+                ((b->sr & SR_BCIS) && (b->cr & CR_IOCE))) {
+                any = 1;
+            }
+        }
+        if ((size_t)(r - s->bm_regs) < ARRAY_SIZE(masks)) {
+            if (level) {
+                s->glob_sta |= masks[r - s->bm_regs];
+            } else {
+                s->glob_sta &= ~masks[r - s->bm_regs];
+            }
+        }
+        if (any) {
+            pci_irq_assert(s->pci_dev);
+        } else {
+            pci_irq_deassert(s->pci_dev);
+        }
+        return;
+    }
+#endif
+
     if (level) {
         s->glob_sta |= masks[r - s->bm_regs];
         dolog("set irq level=1");
@@ -955,6 +987,27 @@ static int write_audio(AC97LinkState *s, AC97BusMasterRegs *r,
     return written;
 }
 
+#ifdef XBOX
+/*
+ * The digital (S/PDIF) output has no host voice. Move through its buffers at
+ * the analog pace without reading them, so its completion interrupts arrive
+ * like on hardware. Drivers that wait for both engines (nxdk-style XAudio,
+ * as in the XBL Dashboard) otherwise never see a buffer finish.
+ */
+static int skip_audio(AC97BusMasterRegs *r, int max, int *stop)
+{
+    uint32_t temp = MIN((uint32_t)r->picb << 1, (uint32_t)max);
+
+    if (!temp) {
+        *stop = 1;
+        return 0;
+    }
+
+    r->bd.addr += temp;
+    return temp;
+}
+#endif
+
 static void write_bup(AC97LinkState *s, int elapsed)
 {
     dolog("write_bup");
@@ -1081,6 +1134,14 @@ static void transfer_audio(AC97LinkState *s, int index, int elapsed)
             elapsed -= temp;
             r->picb -= (temp >> 1);
             break;
+
+#ifdef XBOX
+        case SO_INDEX:
+            temp = skip_audio(r, elapsed, &stop);
+            elapsed -= temp;
+            r->picb -= (temp >> 1);
+            break;
+#endif
         }
 
         if (!r->picb) {
@@ -1122,6 +1183,10 @@ static void mc_callback(void *opaque, int avail)
 static void po_callback(void *opaque, int free)
 {
     transfer_audio(opaque, PO_INDEX, free);
+#ifdef XBOX
+    /* SO has no voice of its own; it runs on the analog clock. */
+    transfer_audio(opaque, SO_INDEX, free);
+#endif
 }
 
 static const VMStateDescription vmstate_ac97_bm_regs = {
