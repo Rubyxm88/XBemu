@@ -18,6 +18,7 @@
 #include "viewport-manager.hh"
 #include "../xemu-settings.h"
 #include "../xemu-gamecache.h"
+#include "../xemu-running-title.h"
 #include "hw/xbox/nv2a/shader-precache.h"
 
 /* Seconds after starting before looking whether to precache by itself */
@@ -71,6 +72,9 @@ ShaderCacheWindow::ShaderCacheWindow()
     m_forget_learned = false;
     m_cleared_time = -1;
     m_disc_known = false;
+    m_disc_title = 0;
+    m_title = 0;
+    m_title_known = false;
 }
 
 void ShaderCacheWindow::Open()
@@ -84,26 +88,35 @@ void ShaderCacheWindow::Open()
 // Once per run, and again when the resolution scale changes: build in the
 // background whatever the list and this PC's own cache have that is not built
 // for this driver and the resolution scales the player uses yet
-// Each game has its own list of shaders: when another disc is loaded, the
-// shaders built from then on are that game's, and the precache looks again
+// Each game has its own list of shaders: when another game is loaded, the
+// shaders built from then on are that game's, and the precache looks again.
+// The game is the one running now, so a game a dashboard started from the
+// hard disk counts; before one runs (and on a dashboard) it is the disc's.
 void ShaderCacheWindow::CheckDisc()
 {
     const char *path = g_config.sys.files.dvd_path;
     std::string now = path ? path : "";
-    if (m_disc_known && now == m_disc_path) {
+    if (!m_disc_known || now != m_disc_path) {
+        if (!xemu_gamecache_disc_title(&m_disc_title, NULL, 0)) {
+            m_disc_title = 0;
+        }
+        m_disc_path = now;
+        m_disc_known = true;
+    }
+
+    XemuRunningTitle running;
+    uint32_t title = xemu_running_title_get(&running) ? running.title_id
+                                                      : m_disc_title;
+    if (m_title_known && title == m_title) {
         return;
     }
-    uint32_t title = 0;
-    if (!xemu_gamecache_disc_title(&title, NULL, 0)) {
-        title = 0;
-    }
     nv2a_shader_precache_set_title(title);
-    if (m_disc_known) {
+    if (m_title_known) {
         m_auto_checked = false;
         m_scan_requested = false;
     }
-    m_disc_path = now;
-    m_disc_known = true;
+    m_title = title;
+    m_title_known = true;
 }
 
 void ShaderCacheWindow::CheckAuto()

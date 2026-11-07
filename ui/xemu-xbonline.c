@@ -24,6 +24,7 @@ typedef struct HddImage {
     unsigned int cluster_bits;
     uint32_t l1_size;
     uint64_t *l1;
+    uint64_t size; /* bytes the disk holds */
 } HddImage;
 
 static bool hdd_read_at(HddImage *img, uint64_t offset, void *buf, size_t len)
@@ -45,12 +46,17 @@ static bool hdd_open(HddImage *img, const char *path)
         return false;
     }
     if (ldl_be_p(hdr) != QCOW2_MAGIC) {
-        return true; /* raw image */
+        /* raw image */
+        if (fseeko(img->f, 0, SEEK_END) == 0) {
+            img->size = ftello(img->f);
+        }
+        return true;
     }
 
     img->qcow2 = true;
     img->cluster_bits = ldl_be_p(hdr + 20);
     img->l1_size = ldl_be_p(hdr + 36);
+    img->size = ldq_be_p(hdr + 24);
     if (ldl_be_p(hdr + 32) || img->cluster_bits < 9 || img->cluster_bits > 21 ||
         img->l1_size == 0 || img->l1_size > 0x100000) {
         return false;
@@ -442,6 +448,84 @@ int xemu_xbonline_hdd_title_update(const char *hdd_path, uint32_t title_id,
         }
         if (content) {
             *content_count = fatx_count_dirs(&fs, content);
+        }
+    }
+    hdd_close(&img);
+    return result;
+}
+
+/*
+ * Games a dashboard installed to the hard disk:
+ * <letter>:\Games\<folder>\default.xbe. The XBL Dashboard installs to F:,
+ * which takes the rest of a disk bigger than the stock 8 GB.
+ */
+#define FATX_F_OFFSET 0x1DD156000ULL
+
+static int installed_in(Fatx *fs, uint32_t title_id, XbOnlineXbe *xbe)
+{
+    uint32_t games = fatx_find(fs, 1, "Games", true);
+    uint8_t *dir = g_malloc(fs->cluster_size);
+    uint8_t *file = g_malloc(fs->cluster_size);
+    uint32_t cluster = games;
+    int found = 0;
+    bool done = false;
+
+    for (int hops = 0; cluster && !done && hops < 4096; hops++) {
+        if (!hdd_read_bytes(fs->img,
+                            fs->data_offset +
+                            (uint64_t)(cluster - 1) * fs->cluster_size,
+                            dir, fs->cluster_size)) {
+            break;
+        }
+        for (uint32_t i = 0; i < fs->cluster_size; i += FATX_ENTRY_SIZE) {
+            const uint8_t *e = dir + i;
+            if (e[0] == 0x00 || e[0] == 0xff) {
+                done = true;
+                break;
+            }
+            if (e[0] == 0xe5 || !(e[1] & FATX_ATTR_DIRECTORY)) {
+                continue;
+            }
+            uint32_t xbe_file = fatx_find(fs, ldl_le_p(e + 44), "default.xbe",
+                                          false);
+            if (xbe_file &&
+                hdd_read_bytes(fs->img,
+                               fs->data_offset +
+                               (uint64_t)(xbe_file - 1) * fs->cluster_size,
+                               file, fs->cluster_size) &&
+                xbe_certificate(file, fs->cluster_size, xbe) &&
+                xbe->title_id == title_id) {
+                found = 1;
+                done = true;
+                break;
+            }
+        }
+        cluster = fatx_next(fs, cluster);
+    }
+
+    g_free(dir);
+    g_free(file);
+    return found;
+}
+
+int xemu_xbonline_hdd_installed_game(const char *hdd_path, uint32_t title_id,
+                                     XbOnlineXbe *xbe, char *drive)
+{
+    HddImage img;
+    Fatx fs;
+    int result = -1;
+
+    if (hdd_open(&img, hdd_path)) {
+        result = 0;
+        if (img.size > FATX_F_OFFSET + 0x100000 &&
+            fatx_open_part(&fs, &img, FATX_F_OFFSET,
+                           img.size - FATX_F_OFFSET) &&
+            installed_in(&fs, title_id, xbe)) {
+            *drive = 'F';
+            result = 1;
+        } else if (fatx_open(&fs, &img) && installed_in(&fs, title_id, xbe)) {
+            *drive = 'E';
+            result = 1;
         }
     }
     hdd_close(&img);

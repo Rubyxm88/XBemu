@@ -22,6 +22,7 @@
 #include "xemu-net.h"
 #include "xemu-diag.h"
 #include "xemu-xbonline.h"
+#include "xemu-running-title.h"
 #include "xemu-xbcheck.h"
 #include <SDL3/SDL.h>
 #ifdef _WIN32
@@ -520,9 +521,35 @@ static int games_in_folder(void)
 
 static void check_disc(void)
 {
-    int i = item_add("Game disc");
+    int i = item_add("Game");
     const char *path = g_config.sys.files.dvd_path;
+    const char *hdd = g_config.sys.files.hdd_path;
+    bool no_disc = !path || !path[0] || xemu_xbonline_is_system_disc(path);
+    XemuRunningTitle running;
     XbOnlineXbe xbe;
+    char drive;
+
+    /* A game a dashboard started from the hard disk has no disc */
+    if (no_disc && xemu_running_title_get(&running)) {
+        if (running.title_id == XEMU_XBONLINE_TITLE_ID ||
+            running.title_id == XEMU_XBONLINE_RS3_TITLE_ID) {
+            item_set(i, XBCHECK_OK, "%s (version %u) is running from the "
+                     "hard disk.", running.name, running.version);
+        } else {
+            item_set(i, XBCHECK_INFO, "%s (title %08X) is running from the "
+                     "hard disk, not Black Arrow.", running.name,
+                     running.title_id);
+        }
+        return;
+    }
+    if (no_disc && hdd && hdd[0] &&
+        xemu_xbonline_hdd_installed_game(hdd, XEMU_XBONLINE_TITLE_ID, &xbe,
+                                         &drive) == 1) {
+        item_set(i, XBCHECK_OK, "%s (version %u) is installed on the hard "
+                 "disk (%c:\\Games). Start it from the Games page of the XBL "
+                 "Dashboard.", xbe.name, xbe.version, drive);
+        return;
+    }
 
     if ((!path || !path[0] || xemu_xbonline_is_system_disc(path)) &&
         games_in_folder() == 0) {

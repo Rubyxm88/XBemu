@@ -59,6 +59,7 @@
 #include "dash-install.hh"
 #include "../xemu-dashinstall.h"
 #include "../xemu-xbonline.h"
+#include "../xemu-running-title.h"
 #include "../xemu-diag.h"
 #if defined(__APPLE__) || defined(__linux__)
 #include "self-update.hh"
@@ -361,6 +362,7 @@ void xemu_hud_update(void)
     DashInstallDraw();
     if (!first_boot_window.is_open) DrawRecordingBadge();
     if (!first_boot_window.is_open) xbcheck_window.Draw();
+    xemu_running_title_poll();
     if (!first_boot_window.is_open) shader_cache_window.Draw();
     guide_window.Draw();
     versions_window.Draw();

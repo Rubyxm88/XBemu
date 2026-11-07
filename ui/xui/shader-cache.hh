@@ -26,8 +26,11 @@ private:
     bool   m_confirm_clear;  // Clear Cache was clicked once
     bool   m_forget_learned; // ...and this PC's own list goes too
     double m_cleared_time;   // when the cache was cleared, to say so
-    std::string m_disc_path; // disc the shaders were last set for
+    std::string m_disc_path; // disc last read for its title
     bool   m_disc_known;
+    uint32_t m_disc_title;   // that disc's game, 0 for none
+    uint32_t m_title;        // game the shaders are set for
+    bool   m_title_known;
 
 public:
     ShaderCacheWindow();

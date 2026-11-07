@@ -154,6 +154,15 @@ typedef struct XbOnlineXbe {
 } XbOnlineXbe;
 
 /*
+ * Look for a game a dashboard installed on the hard disk image
+ * (F:\Games\<folder>\default.xbe, or E:\Games). Returns 1 and fills xbe and
+ * drive ('F' or 'E') when one with title_id is there, 0 when not, -1 when the
+ * image could not be read.
+ */
+int xemu_xbonline_hdd_installed_game(const char *hdd_path, uint32_t title_id,
+                                     XbOnlineXbe *xbe, char *drive);
+
+/*
  * Look for the title update of a game on the hard disk image and count its
  * downloadable content. Returns 1 if the update is there (its certificate in
  * *xbe), 0 if it is not, -1 if the image could not be read.

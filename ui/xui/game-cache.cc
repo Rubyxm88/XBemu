@@ -18,6 +18,7 @@
 #include "viewport-manager.hh"
 #include "../xemu-gamecache.h"
 #include "../xemu-xbonline.h"
+#include "../xemu-running-title.h"
 
 GameCacheWindow game_cache_window;
 
@@ -33,8 +34,14 @@ GameCacheWindow::GameCacheWindow()
 
 void GameCacheWindow::Open()
 {
+    XemuRunningTitle running;
     m_has_disc = xemu_gamecache_disc_title(&m_title_id, m_name, sizeof(m_name));
-    if (!m_has_disc) {
+    if (xemu_running_title_get(&running)) {
+        // The game running now, also one started from the hard disk
+        m_has_disc = true;
+        m_title_id = running.title_id;
+        snprintf(m_name, sizeof(m_name), "%s", running.name);
+    } else if (!m_has_disc) {
         // No game in the drive: Black Arrow is the one that matters
         m_title_id = XEMU_XBONLINE_TITLE_ID;
         snprintf(m_name, sizeof(m_name), "Black Arrow");
