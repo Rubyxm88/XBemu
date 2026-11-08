@@ -557,35 +557,26 @@ static void PlayMenu()
         }
     }
 
+    // On the XBL Dashboard a game goes in the tray, like a disc pushed into
+    // a real Xbox: the dashboard installs, patches and starts it. On the
+    // original dashboard it starts directly.
+    bool tray = xemu_xbonline_main_dashboard() == XBONLINE_DASH_XBL;
     MenuHeader("Games");
     std::filesystem::path current(g_config.sys.files.dvd_path);
     for (const auto &[label, path] : games) {
-        std::string item = "Play " + label;
+        std::string item = (tray ? "Insert " : "Play ") + label;
         bool loaded = std::filesystem::equivalent(current, path, ec);
         if (ImGui::MenuItem(item.c_str(), NULL, loaded)) {
-            ActionPlayDiscFile(path.c_str());
+            ActionChooseGame(path.c_str());
         }
+    }
+    if (tray && !games.empty()) {
+        MenuItemHelp("Puts the disc in the tray. The XBL Dashboard sees it "
+                     "and installs, updates or starts the game. From a "
+                     "game, the console goes back to the dashboard first.");
     }
     if (games.empty() && ImGui::MenuItem("No games yet: Open Games Folder")) {
         xemu_xbcheck_open_games_folder();
-    }
-    // The XBL Dashboard can install a game from the disc in its tray (Disc
-    // tile, Store): put the disc in without restarting the console
-    if (!games.empty() &&
-        xemu_xbonline_main_dashboard() == XBONLINE_DASH_XBL &&
-        ImGui::BeginMenu("Insert in Tray")) {
-        for (const auto &[label, path] : games) {
-            if (ImGui::MenuItem(label.c_str())) {
-                ActionLoadDiscFile(path.c_str());
-            }
-        }
-        ImGui::EndMenu();
-    }
-    if (!games.empty() &&
-        xemu_xbonline_main_dashboard() == XBONLINE_DASH_XBL) {
-        MenuItemHelp("Puts the disc in the drive without starting it, so the "
-                     "XBL Dashboard can see it and install the game from "
-                     "it.");
     }
     if (ImGui::MenuItem("Load Disc...", SHORTCUT_MENU_TEXT(O))) ActionLoadDisc();
     if (ImGui::MenuItem("Eject Disc", SHORTCUT_MENU_TEXT(E))) ActionEjectDisc();
@@ -632,8 +623,9 @@ static void PlayMenu()
         }
         if (backup == XBONLINE_DASH_STOCK) {
             MenuItemHelp("Restarts the console into the dashboard it had "
-                         "before the XBL Dashboard. Your Xbox Live account "
-                         "and the XBL Dashboard stay; switch back any time.");
+                         "before the XBL Dashboard, until you close xemu. "
+                         "The next start is the XBL Dashboard again, with "
+                         "your Xbox Live account.");
         }
     } else {
         if (ImGui::MenuItem("Original Xbox Dashboard")) ActionXboxDashboard();

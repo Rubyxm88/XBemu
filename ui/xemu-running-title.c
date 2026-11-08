@@ -21,6 +21,7 @@ static GMutex lock; /* a zeroed GMutex is ready to use */
 static bool have;
 static XemuRunningTitle current;
 static int64_t last_poll;
+static int64_t system_since; /* when a non-game XBE was first seen, or 0 */
 
 static bool is_game(uint32_t title_id)
 {
@@ -32,6 +33,7 @@ void xemu_running_title_poll(void)
     int64_t now = qemu_clock_get_ms(QEMU_CLOCK_REALTIME);
     XemuRunningTitle found = { 0 };
     bool found_game = false;
+    bool found_system = false;
 
     if (now - last_poll < POLL_MS) {
         return;
@@ -54,11 +56,18 @@ void xemu_running_title_poll(void)
                     }
                 }
                 found.name[40] = 0;
+            } else {
+                found_system = true;
             }
         }
     }
 
     g_mutex_lock(&lock);
+    if (!found_system) {
+        system_since = 0;
+    } else if (!system_since) {
+        system_since = now;
+    }
     if (found_game != have || (found_game &&
                                (found.title_id != current.title_id ||
                                 found.version != current.version))) {
@@ -73,6 +82,17 @@ void xemu_running_title_poll(void)
     have = found_game;
     current = found;
     g_mutex_unlock(&lock);
+}
+
+int64_t xemu_running_title_system_ms(void)
+{
+    int64_t r;
+
+    g_mutex_lock(&lock);
+    r = system_since ? qemu_clock_get_ms(QEMU_CLOCK_REALTIME) - system_since
+                     : 0;
+    g_mutex_unlock(&lock);
+    return r;
 }
 
 bool xemu_running_title_get(XemuRunningTitle *out)

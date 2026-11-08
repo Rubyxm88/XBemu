@@ -363,6 +363,7 @@ void xemu_hud_update(void)
     if (!first_boot_window.is_open) DrawRecordingBadge();
     if (!first_boot_window.is_open) xbcheck_window.Draw();
     xemu_running_title_poll();
+    ActionPoll();
     if (!first_boot_window.is_open) shader_cache_window.Draw();
     guide_window.Draw();
     versions_window.Draw();

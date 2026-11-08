@@ -34,6 +34,10 @@ void xemu_running_title_poll(void);
 /* Any thread: the game running now; false while none is (or a dashboard) */
 bool xemu_running_title_get(XemuRunningTitle *out);
 
+/* Any thread: for how many ms an XBE that is not a game (a dashboard) has
+ * been running without a break; 0 while a game runs or no XBE is loaded */
+int64_t xemu_running_title_system_ms(void);
+
 #ifdef __cplusplus
 }
 #endif

@@ -24,6 +24,7 @@
 #include "../xemu-notifications.h"
 #include "../xemu-xbonline.h"
 #include "../xemu-dashinstall.h"
+#include "../xemu-running-title.h"
 #include "snapshot-manager.hh"
 #include "hw/xbox/xbox-audio-setting.h"
 #include <filesystem>
@@ -87,6 +88,55 @@ void ActionPlayDiscFile(const char *file_path)
     }
     // Restart so the new disc boots whatever was running before
     ActionReset();
+}
+
+// A disc waiting for the dashboard to come up after a restart
+static std::string pending_insert;
+static uint64_t pending_since;
+
+void ActionInsertDiscFile(const char *file_path)
+{
+    // On the dashboard: put the disc in the tray, like pushing a disc into a
+    // real Xbox. The dashboard sees it and offers to start or install it.
+    if (!xemu_running_title_get(NULL)) {
+        pending_insert.clear();
+        ActionLoadDiscFile(file_path);
+        return;
+    }
+    // A game is running: go back to the dashboard first, then put the disc
+    // in once it is up (ActionPoll). Never during the restart itself.
+    pending_insert = file_path;
+    pending_since = SDL_GetTicks();
+    ActionXboxDashboard();
+}
+
+void ActionChooseGame(const char *file_path)
+{
+    // The XBL Dashboard installs and patches games from the disc in its
+    // tray; the original dashboard can't, so there the disc starts directly
+    if (xemu_xbonline_main_dashboard() == XBONLINE_DASH_XBL) {
+        ActionInsertDiscFile(file_path);
+    } else {
+        ActionPlayDiscFile(file_path);
+    }
+}
+
+void ActionPoll(void)
+{
+    if (pending_insert.empty()) {
+        return;
+    }
+    uint64_t waited = SDL_GetTicks() - pending_since;
+    // The dashboard has been running for a few seconds; after a minute
+    // without one, put the disc in anyway
+    if ((waited > 3000 && xemu_running_title_system_ms() > 5000) ||
+        waited > 60000) {
+        std::string path = pending_insert;
+        pending_insert.clear();
+        fprintf(stderr, "insert disc: %s (after %u ms)\n", path.c_str(),
+                (unsigned)waited);
+        ActionLoadDiscFile(path.c_str());
+    }
 }
 
 void ActionXboxLiveSetup(void)

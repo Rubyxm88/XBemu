@@ -3090,6 +3090,14 @@ void qemu_init(int argc, char **argv)
     xemu_xbonline_probe_hdd(g_config.sys.files.hdd_path);
     xemu_gamecache_init();
     const char *setup_disc = xemu_xbonline_setup_disc();
+    if (xemu_xbonline_main_dashboard() == XBONLINE_DASH_STOCK &&
+        xemu_xbonline_backup_dashboard() == XBONLINE_DASH_XBL) {
+        // Switched to the original dashboard last time: that lasts until
+        // xemu closes. Every start is the XBL Dashboard; the two trade
+        // places at the first reset, before the BIOS reads the hard disk.
+        xemu_dashinstall_switch_dashboard();
+        xemu_xbonline_set_main_dashboard(XBONLINE_DASH_XBL);
+    }
     bool xbl_dash_home =
         xemu_xbonline_main_dashboard() == XBONLINE_DASH_XBL;
     if (xemu_dashinstall_wanted()) {

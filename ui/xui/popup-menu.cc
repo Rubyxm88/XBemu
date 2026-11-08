@@ -363,7 +363,7 @@ public:
 
         for (const auto &[label, file_path] : sorted_file_names) {
             if (PopupMenuButton(label, ICON_FA_COMPACT_DISC)) {
-                ActionPlayDiscFile(file_path.c_str());
+                ActionChooseGame(file_path.c_str());
                 nav.ClearMenuStack();
                 pop = true;
             }
