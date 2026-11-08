@@ -327,6 +327,12 @@ void xemu_hud_update(void)
                 ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId),
                 gc.IO.AppFocusLost);
     }
+    /* The SDL backend puts the real cursor back each frame: hold ours */
+    static bool mouse_held;
+    static float mouse_x, mouse_y;
+    if (mouse_held) {
+        ImGui::GetIO().AddMousePosEvent(mouse_x, mouse_y);
+    }
     if (mouse_release > 0 && --mouse_release == 0) {
         ImGui::GetIO().AddMouseButtonEvent(0, false);
     }
@@ -342,13 +348,16 @@ void xemu_hud_update(void)
                 /* ImGui closes menus while the app is unfocused */
                 ImGui::GetIO().AddFocusEvent(true);
                 ImGui::GetIO().AddMousePosEvent(x, y);
+                mouse_held = true;
+                mouse_x = x;
+                mouse_y = y;
                 if (n == 3 && (c == 'c' || c == 'd')) {
                     ImGui::GetIO().AddMouseButtonEvent(0, true);
                     mouse_release = c == 'c' ? 8 : -1;  /* held 8 frames */
                 } else if (n == 3 && c == 'u') {
                     ImGui::GetIO().AddMouseButtonEvent(0, false);
                 }
-                mouse_trace = 12;
+                mouse_trace = 3;
                 fprintf(stderr, "test mouse: %.0f %.0f %c\n", x, y,
                         n == 3 ? c : '-');
             }
