@@ -307,6 +307,36 @@ void xemu_hud_update(void)
             ActionPlayDiscFile(action + 5);
         }
     }
+    /* Second test action, XEMU_TEST_ACTION2="<seconds>:<action>", for the
+     * Play menu (insert:<disc image>), Machine > Reset (reset) and
+     * Machine > BIOS > Restart to Apply (restart).
+     */
+    static bool test_action2_done;
+    const char *action2 = test_action2_done ? NULL :
+                          getenv("XEMU_TEST_ACTION2");
+    const char *colon = action2 ? strchr(action2, ':') : NULL;
+    if (colon &&
+        SDL_GetTicks() - test_action_start > (uint64_t)atoi(action2) * 1000) {
+        test_action2_done = true;
+        const char *what = colon + 1;
+        fprintf(stderr, "test action: %s\n", what);
+        if (!strncmp(what, "insert:", 7)) {
+            ActionChooseGame(what + 7);
+        } else if (!strcmp(what, "reset")) {
+            ActionReset();
+        }
+#if defined(_WIN32)
+        else if (!strcmp(what, "restart")) {
+            std::string error;
+            xemu_settings_save();
+            if (StartLauncherAfterExit("--noupdate", &error)) {
+                ActionShutdown();
+            } else {
+                fprintf(stderr, "test action: %s\n", error.c_str());
+            }
+        }
+#endif
+    }
     static bool test_shot_done;
     const char *test_shot = test_shot_done ? NULL : getenv("XEMU_TEST_SHOT");
     if (test_shot &&
