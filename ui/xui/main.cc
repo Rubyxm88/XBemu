@@ -309,16 +309,15 @@ void xemu_hud_update(void)
         }
     }
     /* Test aid: XEMU_TEST_MOUSE_FILE names a file of "x y" or "x y c"
-     * lines (c = click). Each time it appears it is fed to the menus as
+     * lines (c = click, d = press, u = release). Each time it appears it is fed to the menus as
      * mouse input and deleted, so screenshots of the menus can be taken
      * without the window having focus.
      */
     static const char *mouse_file = getenv("XEMU_TEST_MOUSE_FILE");
     static uint64_t mouse_poll;
     static int mouse_release = -1;
-    if (mouse_release >= 0) {
+    if (mouse_release > 0 && --mouse_release == 0) {
         ImGui::GetIO().AddMouseButtonEvent(0, false);
-        mouse_release = -1;
     }
     if (mouse_file && SDL_GetTicks() - mouse_poll > 250) {
         mouse_poll = SDL_GetTicks();
@@ -330,9 +329,11 @@ void xemu_hud_update(void)
             int n = sscanf(text, "%f %f %c", &x, &y, &c);
             if (n >= 2) {
                 ImGui::GetIO().AddMousePosEvent(x, y);
-                if (n == 3 && c == 'c') {
+                if (n == 3 && (c == 'c' || c == 'd')) {
                     ImGui::GetIO().AddMouseButtonEvent(0, true);
-                    mouse_release = 1;
+                    mouse_release = c == 'c' ? 8 : -1;  /* held 8 frames */
+                } else if (n == 3 && c == 'u') {
+                    ImGui::GetIO().AddMouseButtonEvent(0, false);
                 }
                 fprintf(stderr, "test mouse: %.0f %.0f %c\n", x, y,
                         n == 3 ? c : '-');
