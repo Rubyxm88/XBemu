@@ -84,6 +84,13 @@ void xemu_running_title_poll(void)
     g_mutex_unlock(&lock);
 }
 
+void xemu_running_title_forget(void)
+{
+    g_mutex_lock(&lock);
+    system_since = 0;
+    g_mutex_unlock(&lock);
+}
+
 int64_t xemu_running_title_system_ms(void)
 {
     int64_t r;

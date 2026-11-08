@@ -38,6 +38,9 @@ bool xemu_running_title_get(XemuRunningTitle *out);
  * been running without a break; 0 while a game runs or no XBE is loaded */
 int64_t xemu_running_title_system_ms(void);
 
+/* Any thread: start timing the dashboard again (the console restarts) */
+void xemu_running_title_forget(void);
+
 #ifdef __cplusplus
 }
 #endif

@@ -691,6 +691,19 @@ const char *xemu_xbonline_setup_disc(void)
     return NULL;
 }
 
+static char *deferred_disc;
+
+void xemu_xbonline_defer_disc(const char *path)
+{
+    g_free(deferred_disc);
+    deferred_disc = path && path[0] ? g_strdup(path) : NULL;
+}
+
+const char *xemu_xbonline_deferred_disc(void)
+{
+    return deferred_disc;
+}
+
 bool xemu_xbonline_is_system_disc(const char *path)
 {
     return g_str_has_suffix(path, XEMU_XBONLINE_SETUP_DISC) ||

@@ -3107,7 +3107,11 @@ void qemu_init(int argc, char **argv)
         xemu_dashinstall_begin();
     } else if (xbl_dash_home) {
         // The XBL Dashboard is the console's dashboard: start there, with
-        // no disc in; games start from the Play menu
+        // the tray empty. The game disc goes in once the dashboard is up
+        // (ActionPoll), to start from the dashboard like a real Xbox.
+        if (dvd_path[0] && !xemu_xbonline_is_system_disc(dvd_path)) {
+            xemu_xbonline_defer_disc(dvd_path);
+        }
         dvd_path = "";
         if (!g_config.general.xb_online_setup_offered) {
             g_config.general.xb_online_setup_offered = true;

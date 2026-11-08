@@ -77,6 +77,13 @@ void ActionLoadDiscFile(const char *file_path)
     }
 }
 
+static void InsertAfterRestart(const std::string &path);
+
+static void ResetConsole(void)
+{
+    qemu_system_reset_request(SHUTDOWN_CAUSE_GUEST_RESET);
+}
+
 void ActionPlayDiscFile(const char *file_path)
 {
     Error *err = NULL;
@@ -87,12 +94,19 @@ void ActionPlayDiscFile(const char *file_path)
         return;
     }
     // Restart so the new disc boots whatever was running before
-    ActionReset();
+    ResetConsole();
 }
 
 // A disc waiting for the dashboard to come up after a restart
 static std::string pending_insert;
 static uint64_t pending_since;
+
+static void InsertAfterRestart(const std::string &path)
+{
+    pending_insert = path;
+    pending_since = SDL_GetTicks();
+    xemu_running_title_forget();
+}
 
 void ActionInsertDiscFile(const char *file_path)
 {
@@ -105,9 +119,9 @@ void ActionInsertDiscFile(const char *file_path)
     }
     // A game is running: go back to the dashboard first, then put the disc
     // in once it is up (ActionPoll). Never during the restart itself.
-    pending_insert = file_path;
-    pending_since = SDL_GetTicks();
+    std::string path = file_path;
     ActionXboxDashboard();
+    InsertAfterRestart(path);
 }
 
 void ActionChooseGame(const char *file_path)
@@ -123,13 +137,24 @@ void ActionChooseGame(const char *file_path)
 
 void ActionPoll(void)
 {
+    static bool started;
+    if (!started) {
+        started = true;
+        // The XBL Dashboard started with the tray empty (system/vl.c): the
+        // game disc goes back in once it is up
+        const char *disc = xemu_xbonline_deferred_disc();
+        if (disc) {
+            InsertAfterRestart(disc);
+        }
+    }
     if (pending_insert.empty()) {
         return;
     }
     uint64_t waited = SDL_GetTicks() - pending_since;
-    // The dashboard has been running for a few seconds; after a minute
-    // without one, put the disc in anyway
-    if ((waited > 3000 && xemu_running_title_system_ms() > 5000) ||
+    // A dashboard has run for 5 s, and never sooner than 12 s after the
+    // restart (the old dashboard's header is still in memory while the BIOS
+    // starts). After a minute without one, put the disc in anyway.
+    if ((waited > 12000 && xemu_running_title_system_ms() > 5000) ||
         waited > 60000) {
         std::string path = pending_insert;
         pending_insert.clear();
@@ -160,8 +185,9 @@ void ActionXboxDashboard(void)
 {
     // With no disc in the drive the console starts the dashboard on its
     // hard disk
+    pending_insert.clear();
     ActionEjectDisc();
-    ActionReset();
+    ResetConsole();
 }
 
 void ActionSwitchDashboard(void)
@@ -182,7 +208,17 @@ void ActionTogglePause(void)
 
 void ActionReset(void)
 {
-    qemu_system_reset_request(SHUTDOWN_CAUSE_GUEST_RESET);
+    // A real Xbox boots a disc that is in the tray. With the XBL Dashboard
+    // the console starts on the dashboard instead and the game disc stays:
+    // it goes back in once the dashboard is up, to start from there.
+    const char *disc = g_config.sys.files.dvd_path;
+    if (xemu_xbonline_main_dashboard() == XBONLINE_DASH_XBL && disc[0] &&
+        !xemu_xbonline_is_system_disc(disc)) {
+        std::string path = disc;
+        ActionEjectDisc();
+        InsertAfterRestart(path);
+    }
+    ResetConsole();
 }
 
 void ActionShutdown(void)

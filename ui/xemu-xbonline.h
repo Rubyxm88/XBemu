@@ -209,6 +209,11 @@ const char *xemu_xbonline_setup_disc(void);
 /* Whether the path names one of the dashboard or update discs, not a game */
 bool xemu_xbonline_is_system_disc(const char *path);
 
+/* The game disc held back at start so the XBL Dashboard boots first; it
+ * goes in the tray once the dashboard is up. NULL when there is none. */
+void xemu_xbonline_defer_disc(const char *path);
+const char *xemu_xbonline_deferred_disc(void);
+
 /*
  * Choose the disc image to boot from the games directory when none is
  * configured. Returns a newly allocated path, or NULL if there is no obvious
