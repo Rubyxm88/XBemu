@@ -19,7 +19,8 @@ FIRST TIME
 5. Menu: Play > Black Arrow Updates (stock), and follow the
    prompts.
    (Skip this if your own hard disk already has them.)
-6. Menu: Play > Play Rainbow Six 3 Black Arrow.
+6. Menu: Play > Insert Rainbow Six 3 Black Arrow. The disc goes in the
+   tray; start it from the XBL Dashboard.
 
 All of this is also in the app: Help > Black Arrow Online Guide.
 
@@ -27,9 +28,10 @@ All of this is also in the app: Help > Black Arrow Online Guide.
 EVERY TIME AFTER THAT
 ---------------------
 Double-click "Black Arrow Online". There is no setup window any more: it
-goes straight to the game. If the games folder is empty it opens the XBL
-Dashboard instead. Dashboards, account setup and the update installer stay
-available in the Play and XB Live menus.
+starts in the XBL Dashboard, and your game disc goes in the tray a few
+seconds later, like a real Xbox. Start the game from the dashboard.
+Machine > Reset does the same. Dashboards, account setup and the update
+installer stay available in the Play and XB Live menus.
 
 
 THE MENUS (top of the window)
@@ -201,8 +203,20 @@ DASHBOARDS
 The first time you start, the XBL Dashboard installs itself (about a
 minute, one time only) and becomes your console's dashboard. Don't close the
 emulator while it runs. Play > Dashboard > Switch to Original Dashboard
-brings back the dashboard you had before, and Switch to XBL Dashboard goes
-back. Your Xbox Live account stays signed in either way.
+brings back the dashboard you had before until you close Black Arrow
+Online; the next start is the XBL Dashboard again. Your Xbox Live account
+stays signed in either way.
+
+
+BIOS (OXOS BETA)
+----------------
+Machine > BIOS picks the console's BIOS. Stock BIOS is the default. OXOS
+(beta) is an open-source Xbox BIOS (github.com/kooscode/oxos): choose it,
+then Restart to Apply, and the launcher downloads the version this build was
+tested with from its GitHub page (system\bios\). It is in testing: a disc
+game that starts an older game update saved on the console can freeze on its
+loading screen; the game installed by the XBL Dashboard works. Stock BIOS
+puts back the BIOS you had before. What happened is in system\bios-log.txt.
 
 
 GAME CACHE
