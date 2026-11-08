@@ -867,9 +867,7 @@ static void nabm_writeb(void *opaque, uint32_t addr, uint32_t val)
              */
             if (r->drained) {
                 r->drained = false;
-                if (!getenv("XEMU_AC97_NO_RESTART_BCIS")) {
-                    update_sr(s, r, r->sr | SR_BCIS);
-                }
+                update_sr(s, r, r->sr | SR_BCIS);
             }
 #endif
         }
