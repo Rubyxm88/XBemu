@@ -1078,8 +1078,12 @@ static class Bios
                     }
                     File.Move(target + ".part", target);
                 } else {
-                    // Offline, or the release changed: the newest OXOS
-                    // already here, else stock this time
+                    // Offline, or the release changed: the newest other
+                    // OXOS already here, else stock this time. A damaged
+                    // copy of this version is not used.
+                    if (File.Exists(target)) {
+                        File.Delete(target);
+                    }
                     string previous = Directory.GetFiles(dir, "oxos-*.bin")
                         .OrderByDescending(f => File.GetLastWriteTimeUtc(f)).FirstOrDefault();
                     if (previous == null) {
