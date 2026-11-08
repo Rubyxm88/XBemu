@@ -316,6 +316,17 @@ void xemu_hud_update(void)
     static const char *mouse_file = getenv("XEMU_TEST_MOUSE_FILE");
     static uint64_t mouse_poll;
     static int mouse_release = -1;
+    static int mouse_trace;
+    if (mouse_trace > 0) {
+        mouse_trace--;
+        ImGuiContext &gc = *ImGui::GetCurrentContext();
+        fprintf(stderr, "test mouse state: pos %.0f,%.0f down %d hovered %s "
+                "popup %d focuslost %d\n", gc.IO.MousePos.x, gc.IO.MousePos.y,
+                gc.IO.MouseDown[0],
+                gc.HoveredWindow ? gc.HoveredWindow->Name : "-",
+                ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId),
+                gc.IO.AppFocusLost);
+    }
     if (mouse_release > 0 && --mouse_release == 0) {
         ImGui::GetIO().AddMouseButtonEvent(0, false);
     }
@@ -337,6 +348,7 @@ void xemu_hud_update(void)
                 } else if (n == 3 && c == 'u') {
                     ImGui::GetIO().AddMouseButtonEvent(0, false);
                 }
+                mouse_trace = 12;
                 fprintf(stderr, "test mouse: %.0f %.0f %c\n", x, y,
                         n == 3 ? c : '-');
             }
