@@ -2952,6 +2952,9 @@ static const char *get_eeprom_path(void)
     return path;
 }
 
+/* The XBL Dashboard goes back to being the main one at the first reset */
+static bool xbl_dash_swap_back;
+
 void qemu_init(int argc, char **argv)
 {
     QemuOpts *opts;
@@ -3095,7 +3098,9 @@ void qemu_init(int argc, char **argv)
         // Switched to the original dashboard last time: that lasts until
         // xemu closes. Every start is the XBL Dashboard; the two trade
         // places at the first reset, before the BIOS reads the hard disk.
-        xemu_dashinstall_switch_dashboard();
+        // The reset is hooked once the machine exists (below): hooking it
+        // this early crashed the start.
+        xbl_dash_swap_back = true;
         xemu_xbonline_set_main_dashboard(XBONLINE_DASH_XBL);
     }
     bool xbl_dash_home =
@@ -4186,6 +4191,9 @@ void qemu_init(int argc, char **argv)
         exit(0);
     }
 
+    if (xbl_dash_swap_back) {
+        xemu_dashinstall_switch_dashboard();
+    }
     if (!preconfig_requested) {
         qmp_x_exit_preconfig(&error_fatal);
     }
