@@ -16,9 +16,8 @@ FIRST TIME
    Need a code? Menu: XB Live > Link Code.
    No account yet? See NEW ACCOUNT below first.
 4. In the dashboard: Settings > Network, set the top option to XB Online.
-5. Menu: Play > Black Arrow Updates (stock), and follow the
-   prompts.
-   (Skip this if your own hard disk already has them.)
+5. Put your Rainbow Six 3 Black Arrow disc image in the "games" folder.
+   No update disc needed: the XBL Dashboard installs and updates the game.
 6. Menu: Play > Insert Rainbow Six 3 Black Arrow. The disc goes in the
    tray; start it from the XBL Dashboard.
 
@@ -48,8 +47,6 @@ PLAY           what is in the disc drive
                               No games yet: opens the games folder.
     Load Disc... / Eject Disc Any other disc image.
   GAME UPDATES
-    Black Arrow Updates (stock)
-                              Stock Black Arrow title update and map packs.
     Old Bow Updates (stock)
                               Stock Rainbow Six 3 title update and map packs
                               (see RAINBOW SIX 3 below).
@@ -314,7 +311,8 @@ Setup window says "Add content pack" instead of "Start clean": this folder
     (for example 10.14.0.2).
   - "PC clock": Xbox Live sign-in fails when the Windows clock or time
     zone is wrong. Settings > Time: set time and time zone automatically.
-  - "Game update": Play > Black Arrow Updates (stock).
+  - "Game update": start Black Arrow from the XBL Dashboard; it updates
+    the game.
   - "XB Online server": a firewall, antivirus, VPN or router DNS setting is
     in the way. Allow xemu through the firewall, or try another network.
   - Close any other xemu or emulator and any game that is still running,

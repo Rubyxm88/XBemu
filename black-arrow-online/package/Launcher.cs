@@ -1774,8 +1774,8 @@ class SetupForm : Form
                 "with your xb.live account.");
         AddStep(Side + 1 * col, 344, col - 16, "2", "Go online",
                 "In the dashboard: Settings > Network, set the top option to XB Online.");
-        AddStep(Side + 2 * col, 344, col - 16, "3", "Update the game",
-                "In xemu: Play > Black Arrow Updates (stock) adds the update and maps.");
+        AddStep(Side + 2 * col, 344, col - 16, "3", "Add your game",
+                "Put your disc image in the games folder. The XBL Dashboard installs and updates it.");
         AddStep(Side + 3 * col, 344, col - 16, "4", "Play",
                 "Play > Play Rainbow Six 3 Black Arrow. From then on xemu opens " +
                 "straight to the dashboard.");

@@ -34,9 +34,6 @@ PACKAGE = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..',
 # Package path -> file name in --content-root. Taken from BASE when the
 # content root does not have it.
 CONTENT_DISCS = [
-    # Play > Black Arrow Updates (stock title update and map packs)
-    ('system/Black Arrow Update and Maps.iso',
-     'Black Arrow Update and Maps.iso'),
     # Play > Old Bow Updates (stock Rainbow Six 3 title updates and maps)
     ('system/Rainbow Six 3 Update and Maps.iso', 'Rainbow Six 3 DLC.iso'),
 ]
@@ -45,8 +42,6 @@ CONTENT_DISCS = [
 # check knows each by (ui/xemu-xbonline.h). Packaging stops when one
 # differs: a changed game update has to ship with an xemu that knows it.
 UPDATE_HASHES = [
-    ('system/Black Arrow Update and Maps.iso', 'content/u/default.xbe',
-     'XEMU_XBONLINE_TITLE_UPDATE_SHA256', 'Black Arrow'),
     ('system/Rainbow Six 3 Update and Maps.iso', 'content/uRF/default.xbe',
      'XEMU_XBONLINE_RS3_UPDATE_RF_SHA256', 'Old Bow RF'),
     ('system/Rainbow Six 3 Update and Maps.iso', 'content/uGer/default.xbe',
@@ -162,6 +157,12 @@ def main():
     pkg = os.path.join(a.stage, 'BlackArrowOnline')
     if os.path.abspath(a.base) != os.path.abspath(pkg):
         shutil.copytree(a.base, pkg, dirs_exist_ok=True)
+    # Discs the package no longer ships (Black Arrow updates come from the
+    # XBL Dashboard now)
+    for gone in ('Black Arrow Update and Maps.iso',):
+        gone = os.path.join(pkg, 'system', gone)
+        if os.path.exists(gone):
+            os.remove(gone)
 
     copy(os.path.join(PACKAGE, 'README.txt'), os.path.join(pkg, 'README.txt'))
     copy(os.path.join(PACKAGE, 'Start over.bat'),

@@ -52,7 +52,7 @@ static void OpenXblDashboard() { ActionXboxLiveSetup(); }
 static void OpenLinkCode() { SDL_OpenURL(XEMU_XBONLINE_URL_LINK); }
 static void OpenCreateAccount() { SDL_OpenURL(XEMU_XBONLINE_URL_CREATE); }
 static void RunConnectionCheck() { xbcheck_window.Start(true); }
-static void InstallBaUpdates() { ActionPlayDiscFile(XEMU_XBONLINE_UPDATE_DISC); }
+static void InstallRs3Updates() { ActionPlayDiscFile(XEMU_XBONLINE_RS3_UPDATE_DISC); }
 static void OpenShaderCache() { shader_cache_window.Open(); }
 static void OpenGameCache() { game_cache_window.Open(); }
 static void OpenLogs() { xemu_diag_open_folder(); }
@@ -136,9 +136,7 @@ static const char *const account_text[] = {
 
 static const char *const updates_text[] = {
     "# Black Arrow",
-    "The title update and map packs go on the console's hard disk once:",
-    "> Play > Black Arrow Updates (stock)",
-    "Follow the prompts. Skip this if your own hard disk already has them.",
+    "Nothing to install: the XBL Dashboard installs and updates the game.",
     "# Rainbow Six 3 (Old Bow)",
     "Rainbow Six 3 has its own installer, Play > Old Bow Updates "
     "(stock). Its title update must fit your disc, or the game will not "
@@ -366,7 +364,7 @@ static const GuidePage pages[] = {
       { { "Create an Account", OpenCreateAccount },
         { "Link Code", OpenLinkCode } } },
     { "Game Updates", updates_text,
-      { { "Install Black Arrow Updates", InstallBaUpdates } } },
+      { { "Old Bow Updates", InstallRs3Updates } } },
     { "Graphics & Sound", settings_text,
       { { "Shader Cache...", OpenShaderCache } } },
     { "Troubleshooting", trouble_text,

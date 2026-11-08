@@ -665,14 +665,14 @@ static void check_title_update(void)
     if (r < 0) {
         item_set(i, XBCHECK_INFO, "Could not read the hard disk image.");
     } else if (r == 0) {
-        item_set(i, XBCHECK_FAIL,
-                 "Black Arrow title update is not installed. Without it the "
-                 "game wants to download the update, which XB Online does not "
-                 "serve. Menu: Play > Black Arrow Updates.");
+        item_set(i, XBCHECK_INFO,
+                 "No Black Arrow title update on the hard disk. The XBL "
+                 "Dashboard installs and updates the game.");
     } else if (xbe.version < XEMU_XBONLINE_TITLE_UPDATE_VERSION) {
         item_set(i, XBCHECK_FAIL,
-                 "An older title update (version %x) is installed. Menu: "
-                 "Play > Black Arrow Updates.", xbe.version);
+                 "An older title update (version %x) is installed. Start "
+                 "the game from the XBL Dashboard to update it.",
+                 xbe.version);
     } else if (!strcmp(xbe.header_sha256,
                        XEMU_XBONLINE_TITLE_UPDATE_SHA256)) {
         item_set(i, XBCHECK_OK, "The %s update is installed (version %x, "
@@ -689,15 +689,14 @@ static void check_title_update(void)
 #if XEMU_XBONLINE_TITLE_UPDATE_STRICT
         item_set(i, XBCHECK_FAIL,
                  "%s installed (version %x, SHA-256 %.12s...), not the %s "
-                 "update the other players have. Menu: Play > Black Arrow "
-                 "Updates.", which, xbe.version, xbe.header_sha256,
+                 "update the other players have. Start the game from the "
+                 "XBL Dashboard to update it.", which, xbe.version, xbe.header_sha256,
                  XEMU_XBONLINE_TITLE_UPDATE_NAME);
 #else
         item_set(i, XBCHECK_INFO,
                  "%s installed (version %x, SHA-256 %.12s...), %d map "
-                 "pack%s. The %s update is in Play > Black Arrow Updates.",
-                 which, xbe.version, xbe.header_sha256, maps,
-                 maps == 1 ? "" : "s", XEMU_XBONLINE_TITLE_UPDATE_NAME);
+                 "pack%s.", which, xbe.version, xbe.header_sha256, maps,
+                 maps == 1 ? "" : "s");
 #endif
     }
     if (r == 1) {

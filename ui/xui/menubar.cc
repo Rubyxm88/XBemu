@@ -694,21 +694,11 @@ static void PlayMenu()
     if (ImGui::MenuItem("Load Disc...", SHORTCUT_MENU_TEXT(O))) ActionLoadDisc();
     if (ImGui::MenuItem("Eject Disc", SHORTCUT_MENU_TEXT(E))) ActionEjectDisc();
 
-    bool ba_updates = qemu_access(XEMU_XBONLINE_UPDATE_DISC, F_OK) == 0;
+    // Black Arrow needs no update disc any more: the XBL Dashboard installs
+    // and updates the game. Only Rainbow Six 3 keeps its installer.
     bool rs3_updates = qemu_access(XEMU_XBONLINE_RS3_UPDATE_DISC, F_OK) == 0;
-    if (ba_updates || rs3_updates) {
-        MenuHeader("Game Updates");
-    }
-    if (ba_updates) {
-        if (MenuItemTagged("Black Arrow Updates", "STOCK", TAG_STOCK_BG,
-                           TAG_STOCK_FG)) {
-            ActionPlayDiscFile(XEMU_XBONLINE_UPDATE_DISC);
-        }
-        MenuItemHelp("Installs the original (stock) Black Arrow title update "
-                     "and map packs on this console. Then play Black Arrow "
-                     "from Games.");
-    }
     if (rs3_updates) {
+        MenuHeader("Game Updates");
         if (MenuItemTagged("Old Bow Updates", "STOCK", TAG_STOCK_BG,
                            TAG_STOCK_FG)) {
             ActionPlayDiscFile(XEMU_XBONLINE_RS3_UPDATE_DISC);
