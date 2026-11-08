@@ -30,6 +30,7 @@
 #include <vector>
 #include <string>
 #include <memory>
+#include <glib/gstdio.h>
 
 #include "actions.hh"
 #include "common.hh"
@@ -305,6 +306,38 @@ void xemu_hud_update(void)
             g_main_menu.ShowAbout();
         } else if (action && !strncmp(action, "play:", 5)) {
             ActionPlayDiscFile(action + 5);
+        }
+    }
+    /* Test aid: XEMU_TEST_MOUSE_FILE names a file of "x y" or "x y c"
+     * lines (c = click). Each time it appears it is fed to the menus as
+     * mouse input and deleted, so screenshots of the menus can be taken
+     * without the window having focus.
+     */
+    static const char *mouse_file = getenv("XEMU_TEST_MOUSE_FILE");
+    static uint64_t mouse_poll;
+    static int mouse_release = -1;
+    if (mouse_release >= 0) {
+        ImGui::GetIO().AddMouseButtonEvent(0, false);
+        mouse_release = -1;
+    }
+    if (mouse_file && SDL_GetTicks() - mouse_poll > 250) {
+        mouse_poll = SDL_GetTicks();
+        gchar *text = NULL;
+        if (g_file_get_contents(mouse_file, &text, NULL, NULL)) {
+            g_remove(mouse_file);
+            float x, y;
+            char c = 0;
+            int n = sscanf(text, "%f %f %c", &x, &y, &c);
+            if (n >= 2) {
+                ImGui::GetIO().AddMousePosEvent(x, y);
+                if (n == 3 && c == 'c') {
+                    ImGui::GetIO().AddMouseButtonEvent(0, true);
+                    mouse_release = 1;
+                }
+                fprintf(stderr, "test mouse: %.0f %.0f %c\n", x, y,
+                        n == 3 ? c : '-');
+            }
+            g_free(text);
         }
     }
     /* Second test action, XEMU_TEST_ACTION2="<seconds>:<action>", for the
