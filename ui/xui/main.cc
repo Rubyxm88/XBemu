@@ -328,6 +328,8 @@ void xemu_hud_update(void)
             char c = 0;
             int n = sscanf(text, "%f %f %c", &x, &y, &c);
             if (n >= 2) {
+                /* ImGui closes menus while the app is unfocused */
+                ImGui::GetIO().AddFocusEvent(true);
                 ImGui::GetIO().AddMousePosEvent(x, y);
                 if (n == 3 && (c == 'c' || c == 'd')) {
                     ImGui::GetIO().AddMouseButtonEvent(0, true);
