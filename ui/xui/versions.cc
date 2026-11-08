@@ -524,6 +524,66 @@ static void ParseNotes(const std::string &body, ReleaseBuild &b)
 
 // --- installing ---
 
+#if defined(_WIN32)
+bool StartLauncherAfterExit(const char *args, std::string *error)
+{
+    gchar *base = g_strdup(xemu_settings_get_base_path());
+    size_t n = strlen(base);
+    while (n > 0 && (base[n - 1] == '/' || base[n - 1] == '\\')) {
+        base[--n] = 0;
+    }
+    gchar *root = g_path_get_dirname(base);
+    gchar *launcher = g_build_filename(root, LAUNCHER_NAME, NULL);
+    g_free(base);
+    if (!g_file_test(launcher, G_FILE_TEST_IS_REGULAR)) {
+        *error = "The launcher (" LAUNCHER_NAME ") is not next to the system "
+                 "folder. Start Black Arrow Online from it.";
+        g_free(launcher);
+        g_free(root);
+        return false;
+    }
+    // CreateProcess, not g_spawn_async: on Windows GLib needs
+    // gspawn-win64-helper.exe for that, which the package does not have, so
+    // the launcher never started and going back did nothing
+    gchar *cmd = g_strdup_printf("\"%s\" %s --wait-pid %lu", launcher, args,
+                                 (unsigned long)GetCurrentProcessId());
+    gunichar2 *wcmd = g_utf8_to_utf16(cmd, -1, NULL, NULL, NULL);
+    gunichar2 *wroot = g_utf8_to_utf16(root, -1, NULL, NULL, NULL);
+    STARTUPINFOW si = { 0 };
+    PROCESS_INFORMATION pi = { 0 };
+    si.cb = sizeof(si);
+    // Out of any job xemu is in, so closing xemu cannot end the launcher
+    BOOL started = wcmd && wroot &&
+        CreateProcessW(NULL, (LPWSTR)wcmd, NULL, NULL, FALSE,
+                       CREATE_BREAKAWAY_FROM_JOB, NULL, (LPCWSTR)wroot, &si,
+                       &pi);
+    if (!started && wcmd && wroot) {
+        started = CreateProcessW(NULL, (LPWSTR)wcmd, NULL, NULL, FALSE, 0,
+                                 NULL, (LPCWSTR)wroot, &si, &pi);
+    }
+    DWORD code = started ? 0 : GetLastError();
+    g_free(wcmd);
+    g_free(wroot);
+    if (!started) {
+        gchar *msg = g_win32_error_message(code);
+        *error = std::string("Could not start the launcher: ") + msg;
+        g_free(msg);
+        g_free(cmd);
+        g_free(launcher);
+        g_free(root);
+        return false;
+    }
+    fprintf(stderr, "launcher started (pid %lu): %s\n",
+            (unsigned long)pi.dwProcessId, cmd);
+    CloseHandle(pi.hThread);
+    CloseHandle(pi.hProcess);
+    g_free(cmd);
+    g_free(launcher);
+    g_free(root);
+    return true;
+}
+#endif
+
 void VersionsWindow::Install(int build)
 {
     int local = Installed().build, newest = NewestBuild();
@@ -543,61 +603,12 @@ void VersionsWindow::Install(int build)
     }
 #if defined(_WIN32)
     // The launcher next to the system folder installs it once xemu closed
-    gchar *base = g_strdup(xemu_settings_get_base_path());
-    size_t n = strlen(base);
-    while (n > 0 && (base[n - 1] == '/' || base[n - 1] == '\\')) {
-        base[--n] = 0;
-    }
-    gchar *root = g_path_get_dirname(base);
-    gchar *launcher = g_build_filename(root, LAUNCHER_NAME, NULL);
-    g_free(base);
-    if (!g_file_test(launcher, G_FILE_TEST_IS_REGULAR)) {
-        m_install_error = "The launcher (" LAUNCHER_NAME ") is not next to "
-                          "the system folder. Start Black Arrow Online from "
-                          "it to change builds.";
-        g_free(launcher);
-        g_free(root);
+    std::string args = "--install-build " + BuildText(build);
+    if (!StartLauncherAfterExit(args.c_str(), &m_install_error)) {
         return;
     }
-    // CreateProcess, not g_spawn_async: on Windows GLib needs
-    // gspawn-win64-helper.exe for that, which the package does not have, so
-    // the launcher never started and going back did nothing
-    gchar *cmd = g_strdup_printf("\"%s\" --install-build %s --wait-pid %lu",
-                                 launcher, BuildText(build).c_str(),
-                                 (unsigned long)GetCurrentProcessId());
-    gunichar2 *wcmd = g_utf8_to_utf16(cmd, -1, NULL, NULL, NULL);
-    gunichar2 *wroot = g_utf8_to_utf16(root, -1, NULL, NULL, NULL);
-    STARTUPINFOW si = { 0 };
-    PROCESS_INFORMATION pi = { 0 };
-    si.cb = sizeof(si);
-    // Out of any job xemu is in, so closing xemu cannot end the launcher
-    BOOL started = wcmd && wroot &&
-        CreateProcessW(NULL, (LPWSTR)wcmd, NULL, NULL, FALSE,
-                       CREATE_BREAKAWAY_FROM_JOB, NULL, (LPCWSTR)wroot, &si,
-                       &pi);
-    if (!started && wcmd && wroot) {
-        started = CreateProcessW(NULL, (LPWSTR)wcmd, NULL, NULL, FALSE, 0,
-                                 NULL, (LPCWSTR)wroot, &si, &pi);
-    }
-    DWORD code = started ? 0 : GetLastError();
-    g_free(wcmd);
-    g_free(wroot);
-    g_free(cmd);
-    if (!started) {
-        gchar *msg = g_win32_error_message(code);
-        m_install_error = std::string("Could not start the launcher: ") + msg;
-        g_free(msg);
-        g_free(launcher);
-        g_free(root);
-        return;
-    }
-    CloseHandle(pi.hThread);
-    CloseHandle(pi.hProcess);
-    g_free(launcher);
-    g_free(root);
-    fprintf(stderr, "versions: launcher started (pid %lu), closing for it to "
-            "install build %s\n", (unsigned long)pi.dwProcessId,
-            BuildText(build).c_str());
+    fprintf(stderr, "versions: closing for the launcher to install build "
+            "%s\n", BuildText(build).c_str());
     m_installing = true;
     ActionShutdown();
 #elif defined(__APPLE__) || defined(__linux__)

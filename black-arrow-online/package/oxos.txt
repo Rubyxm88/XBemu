@@ -1,0 +1,6 @@
+tag=v0.4.0
+file=bios_v0.4.0.bin
+zip=oxos_v0.4.0.zip
+sha256=6fd68da56c516f57e9f40bc661fbd16989710d0fc7ef2ffabec9cc450517320c
+source=https://github.com/kooscode/oxos/releases/tag/v0.4.0
+tested=2026-11-08

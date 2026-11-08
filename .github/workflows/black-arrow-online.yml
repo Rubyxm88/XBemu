@@ -483,6 +483,9 @@ jobs:
         cp "black-arrow-online/package/Start over.bat" "pkg/system/Start over.bat"
         cp black-arrow-online/package/Launcher.cs pkg/system/Launcher-source.cs
         cp black-arrow-online/package/shader-list.bin pkg/system/shader-list.bin
+        # The OXOS BIOS version this build was tested with (Machine > BIOS);
+        # the launcher downloads it from the OXOS release, not from us
+        cp black-arrow-online/package/oxos.txt pkg/system/oxos.txt
         # XBL Dashboard installer: its creator's own work, shipped with their
         # permission. xemu runs it once to make XBL Dashboard the dashboard.
         cp "black-arrow-online/package/XBL Dashboard Installer.iso" \

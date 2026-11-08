@@ -123,7 +123,8 @@ def check_update_discs(pkg):
 UPDATE_FILES = ['Black Arrow Online.exe', 'README.txt', 'system/xemu.exe',
                 'system/LICENSE.txt', 'system/Start over.bat',
                 'system/Launcher-source.cs', 'system/shader-list.bin',
-                'system/XBL Dashboard Installer.iso', 'system/version.txt']
+                'system/XBL Dashboard Installer.iso', 'system/oxos.txt',
+                'system/version.txt']
 
 
 def copy(src, dst):
@@ -171,6 +172,8 @@ def main():
          os.path.join(pkg, 'system', 'shader-list.bin'))
     copy(os.path.join(PACKAGE, 'XBL Dashboard Installer.iso'),
          os.path.join(pkg, 'system', 'XBL Dashboard Installer.iso'))
+    copy(os.path.join(PACKAGE, 'oxos.txt'),
+         os.path.join(pkg, 'system', 'oxos.txt'))
     copy(a.xemu, os.path.join(pkg, 'system', 'xemu.exe'))
     if a.launcher:
         copy(a.launcher, os.path.join(pkg, 'Black Arrow Online.exe'))

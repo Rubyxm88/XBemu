@@ -74,6 +74,13 @@ std::string InstalledBuildText();
 // The window title: "Black Arrow Online | Build 27 | xemu 0.8.139"
 std::string WindowTitleText();
 
+#if defined(_WIN32)
+// Starts "Black Arrow Online.exe" (next to system/) with these arguments and
+// --wait-pid <this process>, so it carries on once xemu closed. False, with
+// the reason, when it could not.
+bool StartLauncherAfterExit(const char *args, std::string *error);
+#endif
+
 // xemu's own version, without our "-1-xbl" tag: "0.8.139"
 std::string XemuUpstreamVersion();
 

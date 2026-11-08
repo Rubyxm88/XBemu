@@ -104,6 +104,17 @@ static class Launcher
         Updater.CleanUp();
         RefreshIcon();
 
+        // xemu's "Restart to Apply" after a BIOS change: start once it closed
+        int waitPid;
+        if (int.TryParse(Arg(args, "--wait-pid") ?? "", out waitPid) &&
+            Arg(args, "--install-build") == null) {
+            try {
+                Process.GetProcessById(waitPid).WaitForExit(60000);
+            } catch (ArgumentException) {
+                // Already closed
+            }
+        }
+
         // Help > Versions & Updates in xemu: install the chosen build (newer
         // or older) once xemu has closed
         string installBuild = Arg(args, "--install-build");
@@ -179,6 +190,9 @@ static class Launcher
                     return 0;
                 }
             }
+        }
+        if (mode == null && preview == null) {
+            Bios.Apply();
         }
         if (!noLaunch) {
             AllowSetForegroundWindow(ASFW_ANY);
@@ -433,6 +447,39 @@ static class Launcher
         }
     }
 
+    public static string TomlPath(string key)
+    {
+        Match m = Regex.Match(File.ReadAllText(toml), "(?m)^" + key + " = '(.*)'\r?$");
+        return m.Success ? m.Groups[1].Value : null;
+    }
+
+    // Sets a [sys.files] path, adding the line when xemu left it out
+    public static void SetSysFile(string key, string value)
+    {
+        string text = File.ReadAllText(toml);
+        string line = key + " = '" + value + "'";
+        if (Regex.IsMatch(text, "(?m)^" + key + " = ")) {
+            text = Regex.Replace(text, "(?m)^" + key + " = .*?(?=\r?$)", line.Replace("$", "$$"));
+        } else if (Regex.IsMatch(text, @"(?m)^\[sys\.files\]")) {
+            text = Regex.Replace(text, @"(?m)^\[sys\.files\](?=\r?$)",
+                                 "[sys.files]\n" + line.Replace("$", "$$"));
+        } else {
+            text = text.TrimEnd() + "\n\n[sys.files]\n" + line + "\n";
+        }
+        File.WriteAllText(toml, text);
+    }
+
+    public static void RemoveSysFile(string key)
+    {
+        var lines = File.ReadAllLines(toml).Where(l => !Regex.IsMatch(l, "^" + key + " = "));
+        File.WriteAllLines(toml, lines);
+    }
+
+    public static string Bundled(string which)
+    {
+        return which == "mcpx" ? BundledMcpx : BundledBios;
+    }
+
     static void SetTomlPath(string key, string value)
     {
         string text = File.ReadAllText(toml);
@@ -616,7 +663,7 @@ static class Updater
                      "notes=Follows xemu 0.8.140.");
     }
 
-    static WebRequest Request(string url, int timeoutMs)
+    public static WebRequest Request(string url, int timeoutMs)
     {
         // TLS 1.2, which older .NET versions do not offer by default
         ServicePointManager.SecurityProtocol |= (SecurityProtocolType)3072;
@@ -851,6 +898,224 @@ static class Updater
         PruneBackups();
     }
 
+}
+
+// --- OXOS BIOS (beta) ---
+//
+// A player can pick OXOS, the open-source Xbox BIOS (github.com/kooscode/oxos),
+// in xemu: Machine > BIOS. xemu writes system\bios-choice.txt ("oxos" or
+// "stock") and restarts through this launcher. Each package names the OXOS
+// version we tested in system\oxos.txt (tag, file, zip, sha256). Here, before
+// xemu starts:
+//   - OXOS chosen: the tested version is downloaded once from the OXOS
+//     release on GitHub (the .bin if it is published on its own, otherwise
+//     the release zip, from which only that .bin is taken), checked against
+//     the SHA-256 and kept in system\bios\. xemu then uses it with no MCPX.
+//     A new package with a newer oxos.txt is how the BIOS updates.
+//   - Stock chosen: the bundled BIOS and MCPX come back. A BIOS the player
+//     imported is never touched.
+// The last two OXOS files are kept; the newest one already here is used
+// when a download fails, else the stock BIOS that time.
+static class Bios
+{
+    const string Repo = "https://github.com/kooscode/oxos/releases/download/";
+    const int TimeoutMs = 20000;
+
+    // Tests point this at a local copy of the release
+    static string RepoUrl
+    {
+        get {
+            string url = Environment.GetEnvironmentVariable("BAO_OXOS_RELEASES");
+            return string.IsNullOrEmpty(url) ? Repo : url.TrimEnd('/') + "/";
+        }
+    }
+
+    static string Sys(string name) { return Path.Combine(Launcher.systemDir, name); }
+
+    public static string Choice()
+    {
+        try {
+            return File.ReadAllText(Sys("bios-choice.txt")).Trim().ToLowerInvariant();
+        } catch (IOException) {
+            return "stock";
+        }
+    }
+
+    static Dictionary<string, string> Pin()
+    {
+        var pin = new Dictionary<string, string>();
+        try {
+            foreach (string line in File.ReadAllLines(Sys("oxos.txt"))) {
+                int eq = line.IndexOf('=');
+                if (eq > 0) {
+                    pin[line.Substring(0, eq).Trim()] = line.Substring(eq + 1).Trim();
+                }
+            }
+        } catch (IOException) {
+        }
+        return pin.ContainsKey("tag") && pin.ContainsKey("file") &&
+               pin.ContainsKey("sha256") ? pin : null;
+    }
+
+    static string Sha256(byte[] data)
+    {
+        using (var sha = SHA256.Create()) {
+            return BitConverter.ToString(sha.ComputeHash(data)).Replace("-", "").ToLowerInvariant();
+        }
+    }
+
+    static byte[] Download(string url)
+    {
+        using (WebResponse response = Updater.Request(url, TimeoutMs).GetResponse())
+        using (Stream src = response.GetResponseStream())
+        using (var mem = new MemoryStream()) {
+            src.CopyTo(mem);
+            return mem.ToArray();
+        }
+    }
+
+    // The BIOS file from the release: the .bin itself, else out of the zip
+    static byte[] Fetch(Dictionary<string, string> pin)
+    {
+        string tag = pin["tag"], file = pin["file"], sha = pin["sha256"].ToLowerInvariant();
+        string zip = pin.ContainsKey("zip") ? pin["zip"] : "oxos_" + tag + ".zip";
+        try {
+            byte[] bin = Download(RepoUrl + tag + "/" + file);
+            if (Sha256(bin) == sha) {
+                Log("bios: " + file + " downloaded from release " + tag);
+                return bin;
+            }
+            Log("bios: " + file + " in release " + tag + " has the wrong SHA-256");
+        } catch (Exception e) {
+            Log("bios: no " + file + " in release " + tag + " (" + e.Message + "), trying " + zip);
+        }
+        try {
+            byte[] data = Download(RepoUrl + tag + "/" + zip);
+            using (var archive = new ZipArchive(new MemoryStream(data))) {
+                foreach (ZipArchiveEntry entry in archive.Entries) {
+                    if (!string.Equals(entry.Name, file, StringComparison.OrdinalIgnoreCase)) {
+                        continue;
+                    }
+                    using (Stream src = entry.Open())
+                    using (var mem = new MemoryStream()) {
+                        src.CopyTo(mem);
+                        byte[] bin = mem.ToArray();
+                        if (Sha256(bin) == sha) {
+                            Log("bios: " + file + " taken from " + zip);
+                            return bin;
+                        }
+                        Log("bios: " + file + " in " + zip + " has the wrong SHA-256");
+                    }
+                }
+            }
+            Log("bios: " + zip + " has no good " + file);
+        } catch (Exception e) {
+            Log("bios: " + zip + " could not be read (" + e.Message + ")");
+        }
+        return null;
+    }
+
+    static void Log(string line)
+    {
+        try {
+            File.AppendAllText(Sys("bios-log.txt"),
+                               DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss ") + line + "\r\n");
+        } catch (Exception) {
+        }
+    }
+
+    static bool IsOxos(string path)
+    {
+        return path != null && Regex.IsMatch(path, @"^bios[\\/]oxos-", RegexOptions.IgnoreCase);
+    }
+
+    // The BIOS and MCPX in use before OXOS (the bundled or an imported
+    // one), saved when OXOS is first switched on
+    static void UseStock()
+    {
+        if (!IsOxos(Launcher.TomlPath("flashrom_path"))) {
+            return;
+        }
+        string flash = Launcher.Bundled("bios"), mcpx = Launcher.Bundled("mcpx");
+        try {
+            string[] before = File.ReadAllLines(Sys("bios-before.txt"));
+            if (before.Length >= 2 && before[0].Length > 0 && !IsOxos(before[0]) &&
+                File.Exists(Sys(before[0]))) {
+                flash = before[0];
+                mcpx = before[1].Length > 0 ? before[1] : mcpx;
+            }
+        } catch (IOException) {
+        }
+        Launcher.SetSysFile("flashrom_path", flash);
+        Launcher.SetSysFile("bootrom_path", mcpx);
+        Log("bios: back to " + flash);
+    }
+
+    public static void Apply()
+    {
+        try {
+            if (Choice() != "oxos") {
+                UseStock();
+                return;
+            }
+            var pin = Pin();
+            if (pin == null) {
+                Log("bios: this package names no OXOS version (oxos.txt), stock BIOS");
+                UseStock();
+                return;
+            }
+            string dir = Sys("bios");
+            Directory.CreateDirectory(dir);
+            string name = "oxos-" + pin["tag"] + ".bin";
+            string target = Path.Combine(dir, name);
+            if (!File.Exists(target) ||
+                Sha256(File.ReadAllBytes(target)) != pin["sha256"].ToLowerInvariant()) {
+                byte[] bin = Fetch(pin);
+                if (bin != null) {
+                    File.WriteAllBytes(target + ".part", bin);
+                    if (File.Exists(target)) {
+                        File.Delete(target);
+                    }
+                    File.Move(target + ".part", target);
+                } else {
+                    // Offline, or the release changed: the newest OXOS
+                    // already here, else stock this time
+                    string previous = Directory.GetFiles(dir, "oxos-*.bin")
+                        .OrderByDescending(f => File.GetLastWriteTimeUtc(f)).FirstOrDefault();
+                    if (previous == null) {
+                        Log("bios: OXOS " + pin["tag"] + " could not be downloaded, stock BIOS this time");
+                        UseStock();
+                        return;
+                    }
+                    target = previous;
+                    name = Path.GetFileName(previous);
+                    Log("bios: OXOS " + pin["tag"] + " could not be downloaded, using " + name);
+                }
+            }
+            // Keep this one and the one before it
+            foreach (string old in Directory.GetFiles(dir, "oxos-*.bin")
+                         .OrderByDescending(f => File.GetLastWriteTimeUtc(f)).Skip(2)) {
+                if (!string.Equals(Path.GetFullPath(old), Path.GetFullPath(target),
+                                   StringComparison.OrdinalIgnoreCase)) {
+                    File.Delete(old);
+                }
+            }
+            string current = Launcher.TomlPath("flashrom_path");
+            if (!IsOxos(current)) {
+                File.WriteAllLines(Sys("bios-before.txt"), new[] {
+                    current ?? "", Launcher.TomlPath("bootrom_path") ?? "" });
+            }
+            string rel = "bios\\" + name;
+            if (Launcher.TomlPath("flashrom_path") != rel) {
+                Log("bios: using " + rel + " (no MCPX)");
+            }
+            Launcher.SetSysFile("flashrom_path", rel);
+            // OXOS boots without the MCPX boot ROM
+            Launcher.RemoveSysFile("bootrom_path");
+        } catch (Exception e) {
+            Log("bios: " + e.Message);
+        }
+    }
 }
 
 static class Theme

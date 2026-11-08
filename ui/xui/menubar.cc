@@ -483,6 +483,116 @@ static void OverlayMenu()
 }
 
 // Machine: the console itself (pause, snapshots, settings, power)
+#if defined(_WIN32)
+// Machine > BIOS: the stock BIOS or OXOS (beta), the open-source Xbox BIOS.
+// The launcher reads system/bios-choice.txt when it starts xemu: it fetches
+// the OXOS version the package names (system/oxos.txt) and sets the BIOS.
+static std::string BiosFile(const char *name)
+{
+    gchar *p = g_build_filename(xemu_settings_get_base_path(), name, NULL);
+    std::string r = p;
+    g_free(p);
+    return r;
+}
+
+static std::string ReadBiosChoice()
+{
+    gchar *text = NULL;
+    std::string r = "stock";
+    if (g_file_get_contents(BiosFile("bios-choice.txt").c_str(), &text, NULL,
+                            NULL)) {
+        gchar *lower = g_ascii_strdown(text, -1);
+        r = g_strstrip(lower);
+        g_free(lower);
+        g_free(text);
+    }
+    return r == "oxos" ? r : "stock";
+}
+
+// The OXOS version this package names, e.g. "v0.4.0", or empty
+static std::string OxosTag()
+{
+    gchar *text = NULL;
+    std::string tag;
+    if (g_file_get_contents(BiosFile("oxos.txt").c_str(), &text, NULL, NULL)) {
+        gchar **lines = g_strsplit(text, "\n", -1);
+        for (gchar **l = lines; *l; l++) {
+            g_strstrip(*l);
+            if (g_str_has_prefix(*l, "tag=")) {
+                tag = *l + 4;
+            }
+        }
+        g_strfreev(lines);
+        g_free(text);
+    }
+    return tag;
+}
+
+static bool UsingOxos()
+{
+    const char *flash = g_config.sys.files.flashrom_path;
+    return flash && (g_str_has_prefix(flash, "bios\\oxos-") ||
+                     g_str_has_prefix(flash, "bios/oxos-"));
+}
+
+static void BiosMenu()
+{
+    static std::string choice, tag, error;
+    static bool loaded;
+    if (!loaded) {
+        loaded = true;
+        choice = ReadBiosChoice();
+        tag = OxosTag();
+    }
+    if (tag.empty() && !UsingOxos()) {
+        return;  // This package names no OXOS version
+    }
+    if (!ImGui::BeginMenu("BIOS")) {
+        return;
+    }
+    std::string oxos = "OXOS " + tag + " (beta)";
+    const char *pick = NULL;
+    if (ImGui::MenuItem("Stock BIOS", NULL, choice == "stock")) {
+        pick = "stock";
+    }
+    MenuItemHelp("The Xbox BIOS that comes with Black Arrow Online.");
+    if (ImGui::MenuItem(oxos.c_str(), NULL, choice == "oxos")) {
+        pick = "oxos";
+    }
+    MenuItemHelp("OXOS, an open-source Xbox BIOS (github.com/kooscode/oxos), "
+                 "in testing. Downloaded from its GitHub release when "
+                 "Black Arrow Online starts. Disc games that start a game "
+                 "update saved on the console can freeze on it.");
+    if (pick && choice != pick) {
+        GError *err = NULL;
+        if (g_file_set_contents(BiosFile("bios-choice.txt").c_str(), pick, -1,
+                                &err)) {
+            choice = pick;
+            fprintf(stderr, "bios: %s chosen\n", pick);
+        } else {
+            error = err->message;
+            g_error_free(err);
+        }
+    }
+    bool want_oxos = choice == "oxos";
+    if (want_oxos != UsingOxos()) {
+        ImGui::Separator();
+        if (ImGui::MenuItem("Restart to Apply")) {
+            xemu_settings_save();
+            if (StartLauncherAfterExit("--noupdate", &error)) {
+                ActionShutdown();
+            }
+        }
+        MenuItemHelp("Closes and opens Black Arrow Online again with the "
+                     "chosen BIOS.");
+    }
+    if (!error.empty()) {
+        ImGui::TextDisabled("%s", error.c_str());
+    }
+    ImGui::EndMenu();
+}
+#endif
+
 static void MachineMenu(bool running)
 {
     if (ImGui::MenuItem(running ? "Pause" : "Resume", SHORTCUT_MENU_TEXT(P))) ActionTogglePause();
@@ -533,6 +643,9 @@ static void MachineMenu(bool running)
     ImGui::Separator();
 
     if (ImGui::MenuItem("Settings...")) g_main_menu.ShowSettings();
+#if defined(_WIN32)
+    BiosMenu();
+#endif
 
     ImGui::Separator();
 
