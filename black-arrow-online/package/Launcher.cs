@@ -164,6 +164,13 @@ static class Launcher
             if (mode == "content") {
                 InstallContent(Arg(args, "--pack"), null);
                 return 0;
+            } else if (mode == "check") {
+                // What the offer at start would be, without installing
+                UpdateInfo update = Updater.Check();
+                Console.Out.WriteLine(update == null ? "No update." :
+                                      "Offer build " + update.Text + (update.IsBeta ? " (beta)" : "") +
+                                      " from " + (update.Url.Length > 0 ? update.Url : "latest"));
+                return update == null ? 2 : 0;
             } else if (mode == "update") {
                 UpdateInfo update = Updater.Check();
                 if (update == null) {
@@ -555,36 +562,44 @@ static class Launcher
     }
 }
 
-// A build is a whole number (26), or a sub build of it (26.1, 26.2...) that
-// updates only some systems. version.txt keeps "build=26", which launchers
-// before 26 read, and adds "sub=1"; the release tag is build-26.1. Code holds
-// both as one number, Build * 100 + Sub (2601 for 26.1), for comparing.
+// A build is a whole number (26), a sub build of it (26.1, 26.2...) that
+// updates only some systems, or a beta of either (27.3.1) that only the beta
+// channel gets. version.txt keeps "build=26", which launchers before 26 read,
+// and adds "sub=1" and "beta=1"; the release tags are build-26.1 and
+// build-27.3.1. Code holds all three as one number, for comparing:
+// Build * 10000 + Sub * 100 + Beta (260100 for 26.1, 270301 for 27.3.1).
 class UpdateInfo
 {
-    public int Build, Sub;
+    public int Build, Sub, Beta;
     public string Xemu = "", Date = "", Sha256 = "", Notes = "";
     // Where its files are; empty for the newest build
     public string Url = "";
 
-    public int Code { get { return Build > 0 ? Build * 100 + Sub : 0; } }
-    // "26" or "26.1"
+    public int Code { get { return Build > 0 ? Build * 10000 + Sub * 100 + Beta : 0; } }
+    public bool IsBeta { get { return Beta > 0; } }
+    // "26", "26.1" or "27.3.1"
     public string Text { get { return CodeText(Code); } }
 
     public static string CodeText(int code)
     {
-        return code % 100 != 0 ? (code / 100) + "." + (code % 100) : (code / 100).ToString();
+        int build = code / 10000, sub = code / 100 % 100, beta = code % 100;
+        if (beta != 0) {
+            return build + "." + sub + "." + beta;
+        }
+        return sub != 0 ? build + "." + sub : build.ToString();
     }
 
-    // From "26" or "26.1"; 0 when it is neither
+    // From "26", "26.1" or "27.3.1"; 0 when it is none of them
     public static int CodeFromText(string text)
     {
         string[] parts = (text ?? "").Trim().Split('.');
-        int build, sub = 0;
-        if (parts.Length > 2 || !int.TryParse(parts[0], out build) || build <= 0 ||
-            (parts.Length == 2 && (!int.TryParse(parts[1], out sub) || sub < 0 || sub > 99))) {
+        int build, sub = 0, beta = 0;
+        if (parts.Length > 3 || !int.TryParse(parts[0], out build) || build <= 0 ||
+            (parts.Length >= 2 && (!int.TryParse(parts[1], out sub) || sub < 0 || sub > 99)) ||
+            (parts.Length == 3 && (!int.TryParse(parts[2], out beta) || beta < 0 || beta > 99))) {
             return 0;
         }
-        return build * 100 + sub;
+        return build * 10000 + sub * 100 + beta;
     }
 }
 
@@ -634,6 +649,11 @@ static class Updater
                 if (info.Sub < 0 || info.Sub > 99) {
                     info.Sub = 0;
                 }
+            } else if (key == "beta") {
+                int.TryParse(value, out info.Beta);
+                if (info.Beta < 0 || info.Beta > 99) {
+                    info.Beta = 0;
+                }
             } else if (key == "xemu") {
                 info.Xemu = value;
             } else if (key == "date") {
@@ -677,14 +697,71 @@ static class Updater
         return request;
     }
 
-    // The newer build on the releases page, or null when there is none, the
+    // The beta channel: update-channel.txt says "beta" (Versions & Updates >
+    // Get beta builds in xemu writes it)
+    public static bool BetaChannel()
+    {
+        try {
+            return File.ReadAllText(InSystem("update-channel.txt")).Trim()
+                       .StartsWith("beta", StringComparison.OrdinalIgnoreCase);
+        } catch (IOException) {
+            return false;
+        } catch (UnauthorizedAccessException) {
+            return false;
+        }
+    }
+
+    // Betas are pre-releases with a three-part tag (build-27.3.1), so the
+    // releases page never calls one the latest. BAO_RELEASES_API points this
+    // somewhere else, for testing.
+    const string ReleasesApi =
+        "https://api.github.com/repos/Rubyxm88/Black-Arrow-Online/releases?per_page=30";
+
+    // The newest beta newer than "above" and not skipped, with the place of
+    // its files, or null
+    static UpdateInfo NewestBeta(int above, int skipped)
+    {
+        string api = Environment.GetEnvironmentVariable("BAO_RELEASES_API");
+        string list;
+        using (WebResponse response = Request(string.IsNullOrEmpty(api) ? ReleasesApi : api,
+                                              CheckTimeoutMs).GetResponse())
+        using (var reader = new StreamReader(response.GetResponseStream())) {
+            list = reader.ReadToEnd();
+        }
+        var codes = new List<int>();
+        foreach (Match m in Regex.Matches(list, @"""tag_name""\s*:\s*""build-(\d+\.\d+\.\d+)""")) {
+            int code = UpdateInfo.CodeFromText(m.Groups[1].Value);
+            if (code % 100 != 0 && code > above && code != skipped) {
+                codes.Add(code);
+            }
+        }
+        // A beta whose files are missing (or not for Windows) is passed over
+        foreach (int code in codes.OrderByDescending(c => c)) {
+            try {
+                return ForBuild(code);
+            } catch (InvalidOperationException) {
+            }
+        }
+        return null;
+    }
+
+    // The newer build on the releases page (or, on the beta channel, the
+    // newer beta when that is newer still), or null when there is none, the
     // player skipped it, checking is turned off or there is no connection
     public static UpdateInfo Check()
     {
         if (File.Exists(InSystem("no-update-check.txt"))) {
             return null;
         }
-        UpdateInfo latest = null;
+        int skipped = 0;
+        try {
+            skipped = UpdateInfo.CodeFromText(File.ReadAllText(InSystem("update-skip.txt")));
+        } catch (IOException) {
+        }
+        int installed = Installed().Code;
+        bool beta = BetaChannel();
+
+        UpdateInfo latest = null, newestBeta = null;
         var thread = new Thread(delegate() {
             try {
                 using (WebResponse response = Request(BaseUrl + "version.txt", CheckTimeoutMs).GetResponse())
@@ -696,19 +773,28 @@ static class Updater
             } catch (Exception) {
                 // Offline or no release yet: start as usual
             }
+            if (beta) {
+                try {
+                    newestBeta = NewestBeta(Math.Max(installed, latest != null ? latest.Code : 0),
+                                            skipped);
+                } catch (Exception) {
+                    // GitHub out of reach or asked too often: the full build only
+                }
+            }
         });
         thread.IsBackground = true;
         thread.Start();
-        if (!thread.Join(CheckTimeoutMs) || latest == null) {
+        // On the beta channel: the list, then a beta's version.txt
+        if (!thread.Join(beta ? 3 * CheckTimeoutMs : CheckTimeoutMs)) {
             return null;
         }
-
-        int skipped = 0;
-        try {
-            skipped = UpdateInfo.CodeFromText(File.ReadAllText(InSystem("update-skip.txt")));
-        } catch (IOException) {
+        if (newestBeta != null) {
+            return newestBeta;
         }
-        return latest.Code > Installed().Code && latest.Code != skipped ? latest : null;
+        if (latest == null) {
+            return null;
+        }
+        return latest.Code > installed && latest.Code != skipped ? latest : null;
     }
 
     // A build by its number (UpdateInfo.Code), newer or older than the
@@ -716,7 +802,12 @@ static class Updater
     public static UpdateInfo ForBuild(int code)
     {
         string build = UpdateInfo.CodeText(code);
-        string url = ReleasesPage + "/download/build-" + build + "/";
+        // BAO_DOWNLOAD_URL points this somewhere else, for testing
+        string from = Environment.GetEnvironmentVariable("BAO_DOWNLOAD_URL");
+        if (string.IsNullOrEmpty(from)) {
+            from = ReleasesPage + "/download/";
+        }
+        string url = (from.EndsWith("/") ? from : from + "/") + "build-" + build + "/";
         UpdateInfo info;
         try {
             using (WebResponse response = Request(url + "version.txt", 15000).GetResponse())
@@ -809,7 +900,7 @@ static class Updater
     static void PruneBackups()
     {
         try {
-            var named = new Regex(@"^(.*)-build(\d+)(?:\.(\d+))?\.exe$", RegexOptions.IgnoreCase);
+            var named = new Regex(@"^(.*)-build(\d+)(?:\.(\d+))?(?:\.(\d+))?\.exe$", RegexOptions.IgnoreCase);
             var groups = Directory.GetFiles(BackupsDir, "*-build*.exe")
                 .Select(f => new { File = f, M = named.Match(Path.GetFileName(f)) })
                 .Where(x => x.M.Success)
@@ -818,6 +909,8 @@ static class Updater
                 var old = group.OrderByDescending(x => int.Parse(x.M.Groups[2].Value))
                                .ThenByDescending(x => x.M.Groups[3].Success ?
                                                  int.Parse(x.M.Groups[3].Value) : 0)
+                               .ThenByDescending(x => x.M.Groups[4].Success ?
+                                                 int.Parse(x.M.Groups[4].Value) : 0)
                                .Skip(KeepBuilds);
                 foreach (var x in old) {
                     File.Delete(x.File);
@@ -1202,14 +1295,14 @@ class UpdateForm : Form
         Icon = Launcher.AppIcon();
 
         UpdateInfo installed = Updater.Installed();
-        Theme.AddLabel(this, "An update is available", 24, 16, 512, 38, 18F, true,
-                       Theme.TextColor);
+        Theme.AddLabel(this, update.IsBeta ? "A beta build is available" : "An update is available",
+                       24, 16, 512, 38, 18F, true, Theme.TextColor);
 
         var panel = new Panel();
         panel.SetBounds(24, 66, 512, 132);
         panel.BackColor = Theme.PanelBack;
         Controls.Add(panel);
-        Theme.AddLabel(panel, "Build " + update.Text +
+        Theme.AddLabel(panel, "Build " + update.Text + (update.IsBeta ? " (beta)" : "") +
                               (update.Date.Length > 0 ? "  -  " + update.Date : ""),
                        18, 12, 476, 26, 12F, true, Theme.Green);
         Theme.AddLabel(panel, (update.Xemu.Length > 0 ? "Based on xemu " + update.Xemu + ".  " : "") +

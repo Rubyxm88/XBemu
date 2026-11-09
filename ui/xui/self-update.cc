@@ -146,7 +146,8 @@ static std::string ReadText(const std::string &path)
 static int LocalBuild()
 {
     std::string text = ReadText(ConsoleFile("version.txt"));
-    return BuildFromFields(Field(text, "build"), Field(text, "sub"));
+    return BuildFromFields(Field(text, "build"), Field(text, "sub"),
+                           Field(text, "beta"));
 }
 
 static void PushGreenButtons()
@@ -323,7 +324,8 @@ gpointer SelfUpdateWindow::CheckThread(gpointer opaque)
     std::string text((const char *)data->data, data->len);
     g_byte_array_free(data, TRUE);
     int local = LocalBuild();
-    int build = BuildFromFields(Field(text, "build"), Field(text, "sub"));
+    int build = BuildFromFields(Field(text, "build"), Field(text, "sub"),
+                                Field(text, "beta"));
     std::string sha256 = Field(text, "sha256");
 
     g_mutex_lock(&self->m_lock);
@@ -411,8 +413,8 @@ gpointer SelfUpdateWindow::BuildInfoThread(gpointer opaque)
         self->m_state = CHECK_FAILED;
         self->m_error = err ? error_get_pretty(err)
                             : "GitHub answered " + std::to_string(code) + ".";
-    } else if (BuildFromFields(Field(text, "build"), Field(text, "sub")) !=
-                   build ||
+    } else if (BuildFromFields(Field(text, "build"), Field(text, "sub"),
+                               Field(text, "beta")) != build ||
                sha256.size() != 64) {
         self->m_state = CHECK_FAILED;
         self->m_error = "Could not read " INFO_NAME " of build " +

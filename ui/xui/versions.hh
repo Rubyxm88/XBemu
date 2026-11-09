@@ -15,7 +15,7 @@
 
 // A build on the releases page
 struct ReleaseBuild {
-    int         build;   // build-number.hh number: 26.1 is 2601
+    int         build;   // build-number.hh number: 26.1 is 260100
     std::string date;    // YYYY-MM-DD
     std::string title;
     std::string notes;   // first line of the release notes
@@ -67,6 +67,9 @@ extern VersionsWindow versions_window;
 // with a dot when a newer build is out. Clicking it opens the Versions
 // window.
 void DrawBuildBadge();
+
+// Whether the player gets beta builds (update-channel.txt says "beta")
+bool BetaChannel();
 
 // "Build 27", a beta's own name, or "Test Build"
 std::string InstalledBuildText();

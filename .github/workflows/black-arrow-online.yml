@@ -35,6 +35,15 @@ name: Black Arrow Online release
 # unchanged, and see nothing new. Its notes say which systems it is for in a
 # "<!-- systems: mac -->" line, which the Versions window reads. The next push
 # without that line makes the next whole build (27).
+#
+# Betas: a head commit with a line "Release-Channel: beta" makes a beta of the
+# newest release, such as 27.3.1 after 27.3 (then 27.3.2...), for players who
+# ticked "Get beta builds" in Versions & Updates. Its version files add
+# beta=1, its tag is build-27.3.1, and it is published as a pre-release that
+# is never marked latest, so everyone else, and every launcher and app before
+# 27.3, sees nothing new. "Release-Sub:" in the same commit makes it a beta for
+# those systems only. The next push without the line makes the next sub or
+# whole build as usual. To withdraw a beta, turn it back into a draft.
 
 on:
   push:
@@ -74,6 +83,7 @@ jobs:
       draft: ${{ steps.plan.outputs.draft }}
       build: ${{ steps.plan.outputs.build }}
       sub: ${{ steps.plan.outputs.sub }}
+      beta: ${{ steps.plan.outputs.beta }}
       label: ${{ steps.plan.outputs.label }}
       systems: ${{ steps.plan.outputs.systems }}
       prev_tag: ${{ steps.plan.outputs.prev_tag }}
@@ -209,6 +219,7 @@ jobs:
         mkdir -p prev meta
         {
           echo "sub=0"
+          echo "beta=0"
           echo "systems=windows mac linux"
         } >> "$GITHUB_OUTPUT"
         if [ "$MODE" = none ]; then
@@ -269,6 +280,19 @@ jobs:
           echo "::error title=No build to make a sub build of::Release-Sub needs a published build first"
           exit 1
         fi
+        # "Release-Channel: beta": a beta of the newest release
+        channel=$(git log -1 --format=%B "$COMMIT" |
+                  sed -n 's/^Release-Channel:[[:space:]]*//Ip' | head -n 1 |
+                  tr 'A-Z' 'a-z' | xargs || true)
+        case "$channel" in
+          ""|beta) ;;
+          *) echo "::error title=Unknown Release-Channel::$channel (use beta)"
+             exit 1 ;;
+        esac
+        if [ "$channel" = beta ] && [ -z "$prev_build" ]; then
+          echo "::error title=No build to make a beta of::Release-Channel: beta needs a published build first"
+          exit 1
+        fi
 
         if [ "$prev_commit" = "$COMMIT" ] && [ "$prev_upstream" = "$UPSTREAM" ] &&
            [ "$FORCE" != "true" ]; then
@@ -315,7 +339,22 @@ jobs:
         head -n 1 meta/changes.md | cut -c 3- > meta/notes.txt
 
         echo "release=true" >> "$GITHUB_OUTPUT"
-        if [ -n "$systems" ]; then
+        beta=0
+        if [ "$channel" = beta ]; then
+          # The next beta of the newest release: 27.3.1, 27.3.2...
+          build=$prev_build
+          sub=$prev_sub
+          last=$(gh release list --limit 200 --json tagName --jq '.[].tagName' 2>/dev/null |
+                 sed -n "s/^build-$build\.$sub\.\([0-9][0-9]*\)\$/\1/p" | sort -n | tail -n 1)
+          beta=$(( ${last:-0} + 1 ))
+          if [ "$beta" -gt 99 ]; then
+            echo "::error title=Too many betas::$build.$sub has 99 betas already"
+            exit 1
+          fi
+          label="$build.$sub.$beta"
+          systems=${systems:-windows mac linux}
+          echo "Beta $label for: $systems (the rest copied from $prev_tag)"
+        elif [ -n "$systems" ]; then
           build=$prev_build
           sub=$(( prev_sub + 1 ))
           label="$build.$sub"
@@ -329,6 +368,7 @@ jobs:
         {
           echo "build=$build"
           echo "sub=$sub"
+          echo "beta=$beta"
           echo "label=$label"
           echo "systems=$systems"
           echo "tag=build-$label"
@@ -430,6 +470,7 @@ jobs:
       GH_REPO: ${{ github.repository }}
       BUILD: ${{ needs.prepare.outputs.build }}
       SUB: ${{ needs.prepare.outputs.sub }}
+      BETA: ${{ needs.prepare.outputs.beta }}
       LABEL: ${{ needs.prepare.outputs.label }}
       SYSTEMS: ${{ needs.prepare.outputs.systems }}
       PREV_TAG: ${{ needs.prepare.outputs.prev_tag }}
@@ -497,6 +538,9 @@ jobs:
         if [ "${SUB:-0}" != 0 ]; then
           echo "sub=$SUB" >> pkg/system/version.txt
         fi
+        if [ "${BETA:-0}" != 0 ]; then
+          echo "beta=$BETA" >> pkg/system/version.txt
+        fi
         # Every line of "What changed", which the app shows after an update
         { sed -n 's/^- /change=/p' meta/changes.md 2>/dev/null || true; } >> pkg/system/version.txt
         (cd pkg && 7z a -tzip -bso0 ../BlackArrowOnline-update.zip .)
@@ -536,7 +580,11 @@ jobs:
         {
           echo "Build $LABEL of Black Arrow Online, based on xemu ${UPSTREAM#v} (source version $VERSION)."
           echo
-          if [ "${SUB:-0}" != 0 ]; then
+          if [ "${BETA:-0}" != 0 ]; then
+            echo "<!-- systems: $SYSTEMS -->"
+            echo "**Beta build.** Only players who ticked Help > Versions & Updates > Get beta builds are offered it. Everyone else stays on ${PREV_TAG#build-}."
+            echo
+          elif [ "${SUB:-0}" != 0 ]; then
             echo "<!-- systems: $SYSTEMS -->"
             echo "A sub build for $(echo "$SYSTEMS" | sed 's/windows/Windows/; s/mac/Mac/; s/linux/Linux/; s/ /, /g') only. Other systems keep the files of ${PREV_TAG#build-} (build ${PREV_TAG#build-}) and are not offered anything."
             echo
@@ -579,8 +627,17 @@ jobs:
       if: needs.prepare.outputs.publish == 'true'
       shell: bash
       run: |
-        if ! out=$(gh release create "$TAG" --target "$COMMIT" --latest \
-            --title "Build $LABEL (xemu ${UPSTREAM#v})" --notes-file notes.md \
+        # A beta is a pre-release and never the latest: only the beta
+        # channel looks for it
+        if [ "${BETA:-0}" != 0 ]; then
+          kind=(--prerelease --latest=false)
+          title="Build $LABEL beta (xemu ${UPSTREAM#v})"
+        else
+          kind=(--latest)
+          title="Build $LABEL (xemu ${UPSTREAM#v})"
+        fi
+        if ! out=$(gh release create "$TAG" --target "$COMMIT" "${kind[@]}" \
+            --title "$title" --notes-file notes.md \
             BlackArrowOnline-update.zip version.txt \
             "BlackArrowOnline-source-$TAG.tar.zst" 2>&1); then
           echo "::error::$(echo "$out" | tr '\n' ' ')"
@@ -724,6 +781,7 @@ jobs:
     env:
       BUILD: ${{ needs.prepare.outputs.build }}
       SUB: ${{ needs.prepare.outputs.sub }}
+      BETA: ${{ needs.prepare.outputs.beta }}
       PUBLISH: ${{ needs.prepare.outputs.publish }}
       VERSION: ${{ needs.prepare.outputs.version }}
       UPSTREAM: ${{ needs.prepare.outputs.upstream }}
@@ -773,6 +831,9 @@ jobs:
             > "$pkg/version.txt"
         if [ -n "$build" ] && [ "${SUB:-0}" != 0 ]; then
           echo "sub=$SUB" >> "$pkg/version.txt"
+        fi
+        if [ -n "$build" ] && [ "${BETA:-0}" != 0 ]; then
+          echo "beta=$BETA" >> "$pkg/version.txt"
         fi
         { sed -n 's/^- /change=/p' meta/changes.md 2>/dev/null || true; } >> "$pkg/version.txt"
         ls -la "$pkg"
@@ -963,6 +1024,7 @@ jobs:
     env:
       BUILD: ${{ needs.prepare.outputs.build }}
       SUB: ${{ needs.prepare.outputs.sub }}
+      BETA: ${{ needs.prepare.outputs.beta }}
       PUBLISH: ${{ needs.prepare.outputs.publish }}
       VERSION: ${{ needs.prepare.outputs.version }}
       UPSTREAM: ${{ needs.prepare.outputs.upstream }}
@@ -1010,6 +1072,9 @@ jobs:
             > "$pkg/version.txt"
         if [ -n "$build" ] && [ "${SUB:-0}" != 0 ]; then
           echo "sub=$SUB" >> "$pkg/version.txt"
+        fi
+        if [ -n "$build" ] && [ "${BETA:-0}" != 0 ]; then
+          echo "beta=$BETA" >> "$pkg/version.txt"
         fi
         { sed -n 's/^- /change=/p' meta/changes.md 2>/dev/null || true; } >> "$pkg/version.txt"
         ls -la "$pkg"

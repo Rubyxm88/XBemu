@@ -278,6 +278,8 @@ static const char *const versions_text[] = {
     "Help > Versions & Updates lists every build: install the newest, or go "
     "back to an earlier one if a new build gives you trouble. It asks first, "
     "then closes Black Arrow Online, installs the build and opens it again.",
+    "Tick Get beta builds there to be offered test builds (such as 27.3.1) "
+    "before everyone else. They may have problems.",
 #if defined(__APPLE__) || defined(__linux__)
     "An update replaces the app only. Your console, Xbox Live sign-in, saves, "
     "settings and games are kept.",

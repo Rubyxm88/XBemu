@@ -262,6 +262,10 @@ you trouble. Black Arrow Online asks first, closes, installs the build and
 opens again. Builds known to be broken are greyed out with the reason.
 Builds before 15 do not have this window: to come back from one, choose
 Update now when the launcher offers the newest build at the start.
+Beta builds: tick "Get beta builds" in Help > Versions & Updates to be
+offered test builds such as 27.3.1 before everyone else. They may have
+problems. Untick it to stay on full builds; a beta you have is kept until
+the next full build, or roll back in the same window.
 To turn the check off, create an empty file system\no-update-check.txt.
 Builds and notes: https://github.com/Rubyxm88/Black-Arrow-Online/releases
 The downloads there are updates for this folder, not the full package.

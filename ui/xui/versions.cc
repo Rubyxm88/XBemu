@@ -6,7 +6,10 @@
 // then written to update-skip.txt, so it is not offered at start until a
 // newer build is out). Pre-releases
 // and drafts are left out, so a build is withdrawn by ticking "Set as a
-// pre-release" on GitHub. A release whose notes have a line starting with
+// pre-release" on GitHub. Betas (27.3.1) are pre-releases too, told apart by
+// their three-part tag; they are listed, and offered, only to players who
+// tick "Get beta builds" (update-channel.txt says "beta", which the launcher
+// reads as well). A release whose notes have a line starting with
 // "Broken:" is shown greyed out with the rest of that line, and cannot be
 // installed. A sub build (26.1, see build-number.hh) that leaves this system
 // as it was, which its notes say in a "<!-- systems: mac -->" line, is left
@@ -97,7 +100,7 @@ using json = nlohmann::json;
 #define FIRST_BUILD_WITH_SURROUND 24
 
 /*
- * Build numbers in this file are build-number.hh numbers (26.1 is 2601); the
+ * Build numbers in this file are build-number.hh numbers (26.1 is 260100); the
  * FIRST_BUILD_ ones above are whole builds.
  */
 
@@ -171,7 +174,8 @@ static const LocalVersion &Installed()
         gchar *text = NULL;
         if (g_file_get_contents(path, &text, NULL, NULL)) {
             std::string t(text);
-            v.build = BuildFromFields(Field(t, "build"), Field(t, "sub"));
+            v.build = BuildFromFields(Field(t, "build"), Field(t, "sub"),
+                                      Field(t, "beta"));
             v.xemu = Field(t, "xemu");
             v.date = Field(t, "date");
             v.commit = Field(t, "commit").substr(0, 10);
@@ -223,6 +227,41 @@ static bool UpdateChecksOff()
     bool off = g_file_test(path, G_FILE_TEST_EXISTS);
     g_free(path);
     return off;
+}
+
+// The beta channel: update-channel.txt in the system folder says "beta".
+// The launcher reads the same file for its offer at start.
+static gchar *ChannelFile()
+{
+    return g_build_filename(xemu_settings_get_base_path(),
+                            "update-channel.txt", NULL);
+}
+
+bool BetaChannel()
+{
+    gchar *path = ChannelFile();
+    gchar *text = NULL;
+    bool beta = false;
+    if (g_file_get_contents(path, &text, NULL, NULL)) {
+        beta = g_ascii_strncasecmp(g_strstrip(text), "beta", 4) == 0;
+        g_free(text);
+    }
+    g_free(path);
+    return beta;
+}
+
+static void SetBetaChannel(bool beta)
+{
+    gchar *path = ChannelFile();
+    if (beta) {
+        if (!g_file_set_contents(path, "beta\n", -1, NULL)) {
+            fprintf(stderr, "versions: could not write %s\n", path);
+        }
+    } else {
+        g_remove(path);
+    }
+    fprintf(stderr, "versions: beta builds %s\n", beta ? "on" : "off");
+    g_free(path);
 }
 
 static void PushGreenButtons()
@@ -335,6 +374,8 @@ gpointer VersionsWindow::LoadThread(gpointer opaque)
     int code = http_get(api && *api ? api : RELEASES_API, data, NULL, &err);
     std::vector<ReleaseBuild> builds;
     std::string error;
+    bool beta_channel = BetaChannel();
+    int installed = Installed().build;
 
     if (code != 200) {
         error = err ? std::string("Could not reach GitHub: ") +
@@ -348,13 +389,20 @@ gpointer VersionsWindow::LoadThread(gpointer opaque)
                 std::string((const char *)data->data, data->len));
             for (const json &r : releases) {
                 std::string tag = r.value("tag_name", "");
-                // Withdrawn builds are pre-releases; drafts are not out yet
-                if (r.value("draft", false) || r.value("prerelease", false) ||
-                    tag.rfind("build-", 0) != 0) {
+                // Drafts are not out yet
+                if (r.value("draft", false) || tag.rfind("build-", 0) != 0) {
                     continue;
                 }
                 int build = BuildFromText(tag.substr(6));
                 if (build <= 0 || tag != BuildTag(build)) {
+                    continue;
+                }
+                // Withdrawn builds are pre-releases. Betas are pre-releases
+                // as well: only the beta channel gets them (and the one
+                // installed is always listed)
+                if (BuildIsBeta(build)
+                        ? !beta_channel && build != installed
+                        : r.value("prerelease", false)) {
                     continue;
                 }
                 bool has_asset = false;
@@ -378,7 +426,7 @@ gpointer VersionsWindow::LoadThread(gpointer opaque)
                 ParseNotes(body, b);
                 // A sub build for other systems has this system's files of
                 // the build before it
-                if (build % BUILD_SUBS && !b.systems.empty() &&
+                if (build % BUILD_WHOLE_UNIT && !b.systems.empty() &&
                     (" " + b.systems + " ").find(" " PLATFORM_SYSTEM " ") ==
                         std::string::npos) {
                     continue;
@@ -780,6 +828,23 @@ void VersionsWindow::Draw()
     ImGui::TextWrapped("Install any build from the releases page: a newer "
                        "one to update, or roll back to an older one if the "
                        "newest gives you trouble.");
+    bool beta = BetaChannel();
+    if (ImGui::Checkbox("Get beta builds", &beta)) {
+        SetBetaChannel(beta);
+        Load("channel");
+    }
+    ImGui::SameLine();
+    if (beta && BuildIsBeta(local.build)) {
+        ImGui::TextDisabled("Betas are offered at start, like full builds.");
+    } else if (beta) {
+        ImGui::TextDisabled("Betas (such as 27.3.1) are offered at start, "
+                            "like full builds.");
+    } else if (BuildIsBeta(local.build)) {
+        ImGui::TextDisabled("You keep this beta until the next full build, or "
+                            "roll back below.");
+    } else {
+        ImGui::TextDisabled("Try new builds early. They may have problems.");
+    }
     if (!m_install_error.empty()) {
         ImGui::TextColored(problem_color, "%s", m_install_error.c_str());
     }
@@ -827,6 +892,10 @@ void VersionsWindow::Draw()
         }
         ImGui::SameLine();
         ImGui::TextDisabled("%s", b.date.c_str());
+        if (BuildIsBeta(b.build)) {
+            ImGui::SameLine();
+            ImGui::TextColored(update_color, "BETA");
+        }
         if (installed) {
             ImGui::SameLine();
             ImGui::TextColored(ImVec4(0.45f, 0.9f, 0.45f, 1.0f), "Installed");
