@@ -55,8 +55,9 @@ void ActionLoadDisc(void)
     if (!default_path || !default_path[0]) {
         default_path = g_config.general.games_dir;
     }
+    // Games start only from the dashboard: the disc goes in the tray
     ShowOpenFileDialog(filters, 2, default_path, [](const char *path) {
-        ActionLoadDiscFile(path);
+        ActionInsertDiscFile(path);
     });
 }
 
@@ -126,13 +127,9 @@ void ActionInsertDiscFile(const char *file_path)
 
 void ActionChooseGame(const char *file_path)
 {
-    // The XBL Dashboard installs and patches games from the disc in its
-    // tray; the original dashboard can't, so there the disc starts directly
-    if (xemu_xbonline_main_dashboard() == XBONLINE_DASH_XBL) {
-        ActionInsertDiscFile(file_path);
-    } else {
-        ActionPlayDiscFile(file_path);
-    }
+    // A game always goes in the tray and starts from the XBL Dashboard, like
+    // pushing a disc into a real Xbox
+    ActionInsertDiscFile(file_path);
 }
 
 void ActionPoll(void)

@@ -670,23 +670,21 @@ static void PlayMenu()
         }
     }
 
-    // On the XBL Dashboard a game goes in the tray, like a disc pushed into
-    // a real Xbox: the dashboard installs, patches and starts it. On the
-    // original dashboard it starts directly.
-    bool tray = xemu_xbonline_main_dashboard() == XBONLINE_DASH_XBL;
+    // A game goes in the tray, like a disc pushed into a real Xbox: the XBL
+    // Dashboard installs, patches and starts it
     MenuHeader("Games");
     std::filesystem::path current(g_config.sys.files.dvd_path);
     for (const auto &[label, path] : games) {
-        std::string item = (tray ? "Insert " : "Play ") + label;
+        std::string item = "Load " + label;
         bool loaded = std::filesystem::equivalent(current, path, ec);
         if (ImGui::MenuItem(item.c_str(), NULL, loaded)) {
             ActionChooseGame(path.c_str());
         }
     }
-    if (tray && !games.empty()) {
-        MenuItemHelp("Puts the disc in the tray. The XBL Dashboard sees it "
-                     "and installs, updates or starts the game. From a "
-                     "game, the console goes back to the dashboard first.");
+    if (!games.empty()) {
+        MenuItemHelp("Puts the disc in the tray. Start it from the XBL "
+                     "Dashboard's Disc tile. From a game, the console goes "
+                     "back to the dashboard first.");
     }
     if (games.empty() && ImGui::MenuItem("No games yet: Open Games Folder")) {
         xemu_xbcheck_open_games_folder();
@@ -711,42 +709,30 @@ static void PlayMenu()
                      "with Scharins v2.");
     }
 
-    // Only the dashboard the console has: the XBL Dashboard once it is
-    // installed, otherwise the original one (and a way to install it)
+    // XBemu has one dashboard, the XBL Dashboard: no original dashboard or
+    // switch buttons. Until it is installed, a way to install it.
     MenuHeader("Dashboard");
     int backup = xemu_xbonline_backup_dashboard();
     if (xemu_xbonline_main_dashboard() == XBONLINE_DASH_XBL) {
         if (ImGui::MenuItem("XBL Dashboard")) ActionXboxDashboard();
-        MenuItemHelp("Takes the disc out and goes back to your console's "
-                     "dashboard.");
-        if (backup == XBONLINE_DASH_STOCK &&
-            ImGui::MenuItem("Switch to Original Dashboard", NULL, false,
-                            !xemu_dashinstall_active())) {
-            ActionSwitchDashboard();
-        }
-        if (backup == XBONLINE_DASH_STOCK) {
-            MenuItemHelp("Restarts the console into the dashboard it had "
-                         "before the XBL Dashboard, until you close xemu. "
-                         "The next start is the XBL Dashboard again, with "
-                         "your Xbox Live account.");
-        }
+        MenuItemHelp("Takes the disc out and goes back to the XBL "
+                     "Dashboard.");
     } else {
-        if (ImGui::MenuItem("Original Xbox Dashboard")) ActionXboxDashboard();
         if (backup == XBONLINE_DASH_XBL) {
+            // Only a copy moved from Black Arrow Online that was switched to
+            // the original dashboard can be here: a way back, one way only
             if (ImGui::MenuItem("Switch to XBL Dashboard", NULL, false,
                                 !xemu_dashinstall_active())) {
                 ActionSwitchDashboard();
             }
             MenuItemHelp("Restarts the console into the XBL Dashboard, "
-                         "signed in as before. The original dashboard is "
-                         "kept as its backup.");
+                         "signed in as before.");
         } else if (xemu_xbonline_install_disc()) {
             if (ImGui::MenuItem("Install XBL Dashboard", NULL, false,
                                 !xemu_dashinstall_active())) {
                 xemu_dashinstall_start_now();
             }
-            MenuItemHelp("Makes the XBL Dashboard your console's dashboard. "
-                         "The original one is kept as a backup.");
+            MenuItemHelp("Sets up the XBL Dashboard on this console.");
         } else if (xemu_xbonline_setup_disc()) {
             if (ImGui::MenuItem("XBL Dashboard")) ActionXboxLiveSetup();
         }

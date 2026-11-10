@@ -453,10 +453,7 @@ public:
                 pop = true;
             }
         } else {
-            if (PopupMenuButton("Original Xbox Dashboard", ICON_FA_TV)) {
-                ActionXboxDashboard();
-                pop = true;
-            }
+            // XBemu: no original dashboard button, only the way to the XBL one
             if (xemu_xbonline_install_disc()) {
                 if (!xemu_dashinstall_active() &&
                     PopupMenuButton("Install XBL Dashboard", ICON_FA_GLOBE)) {
