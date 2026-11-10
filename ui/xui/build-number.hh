@@ -70,7 +70,7 @@ static inline int BuildFromFields(const std::string &build,
 }
 
 // From "26", "26.1" or "27.3.1" (update-skip.txt, update-done.txt, a release
-// tag without its "build-"); 0 when it is none of them
+// tag without its "xbemu-"); 0 when it is none of them
 static inline int BuildFromText(const std::string &text)
 {
     std::string parts[3];
@@ -118,5 +118,5 @@ static inline std::string BuildText(int code)
 // The release tag: build-26, build-26.1 or build-27.3.1
 static inline std::string BuildTag(int code)
 {
-    return "build-" + BuildText(code);
+    return "xbemu-" + BuildText(code);
 }
