@@ -1,5 +1,5 @@
 //
-// xemu User Interface: Black Arrow Online build numbers with sub builds
+// xemu User Interface: XBemu build numbers with sub builds
 // and betas
 //
 // A build is a whole number (26), a sub build of it (26.1, 26.2...) that

@@ -33,7 +33,7 @@ static std::string ToolPath()
 {
     std::string tool;
 #if defined(__APPLE__)
-    // .../Black Arrow Online.app/Contents/Resources/
+    // .../XBemu.app/Contents/Resources/
     const char *base = SDL_GetBasePath();
     const char *end = base ? strstr(base, ".app/") : NULL;
     if (end) {

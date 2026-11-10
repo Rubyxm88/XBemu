@@ -1,11 +1,11 @@
 //
-// xemu User Interface: Black Arrow Online updates on a Mac and on Linux
+// xemu User Interface: XBemu updates on a Mac and on Linux
 //
 // A few seconds after the start the app reads mac-version.txt (Linux:
 // linux-version.txt) of the newest GitHub release. When it names a newer
 // build than the one installed (the version.txt setup.sh put in the console
 // folder), a small panel offers it. Update now downloads the build's update
-// (BlackArrowOnline-mac-update.zip, or BlackArrowOnline-linux-update.tar.gz),
+// (XBemu-mac-update.zip, or XBemu-linux-update.tar.gz),
 // checks it against the SHA-256 in that file and unpacks it; then the app
 // starts the update's own setup.sh with --update and closes. setup.sh waits
 // for it to close, installs the new app as a Terminal run would, and opens
@@ -41,16 +41,16 @@ extern "C" {
 #include <stdlib.h>
 #include <limits.h>
 
-#define RELEASES_PAGE "https://github.com/Rubyxm88/Black-Arrow-Online/releases"
+#define RELEASES_PAGE "https://github.com/Rubyxm88/XBemu/releases"
 
 #if defined(__APPLE__)
 #define PLATFORM "Mac"
 #define INFO_NAME "mac-version.txt"
-#define ZIP_NAME "BlackArrowOnline-mac-update.zip"
+#define ZIP_NAME "XBemu-mac-update.zip"
 #else
 #define PLATFORM "Linux"
 #define INFO_NAME "linux-version.txt"
-#define ZIP_NAME "BlackArrowOnline-linux-update.tar.gz"
+#define ZIP_NAME "XBemu-linux-update.tar.gz"
 #endif
 
 // The releases page; XEMU_TEST_RELEASES points it at a test server that has
@@ -198,9 +198,9 @@ static bool WrongCopy()
     bool in_apps = path.rfind("/Applications/", 0) == 0 ||
                    path.rfind(home_apps, 0) == 0;
     bool installed =
-        g_file_test("/Applications/Black Arrow Online.app",
+        g_file_test("/Applications/XBemu.app",
                     G_FILE_TEST_IS_DIR) ||
-        g_file_test((home_apps + "Black Arrow Online.app").c_str(),
+        g_file_test((home_apps + "XBemu.app").c_str(),
                     G_FILE_TEST_IS_DIR);
     if (translocated || (!in_apps && installed)) {
         fprintf(stderr, "update: running from %s, not the copy in "
@@ -254,7 +254,7 @@ void SelfUpdateWindow::DrawWrongCopy()
     float scale = g_viewport_mgr.m_scale;
     PopupStackPlace();
     ImGui::SetNextWindowBgAlpha(0.92f);
-    if (ImGui::Begin("Black Arrow Online Wrong Copy", NULL,
+    if (ImGui::Begin("XBemu Wrong Copy", NULL,
                      ImGuiWindowFlags_NoDecoration |
                      ImGuiWindowFlags_NoFocusOnAppearing |
                      ImGuiWindowFlags_NoNav |
@@ -265,13 +265,13 @@ void SelfUpdateWindow::DrawWrongCopy()
                            "Opened from the download folder");
 #if defined(__APPLE__)
         ImGui::TextWrapped(
-            "Updates go to Black Arrow Online in your Applications folder, "
+            "Updates go to XBemu in your Applications folder, "
             "so this copy will stay on this build. Quit, then open Black "
             "Arrow Online from Applications (Finder > Applications, or "
             "Launchpad). You can delete the downloaded folder.");
 #else
         ImGui::TextWrapped(
-            "Updates go to the Black Arrow Online that setup.sh installed, so "
+            "Updates go to the XBemu that setup.sh installed, so "
             "this copy will stay on this build. Quit, then open Black Arrow "
             "Online from your applications menu (or Steam, if you added it "
             "there). You can delete the downloaded folder.");
@@ -506,7 +506,7 @@ gpointer SelfUpdateWindow::DownloadThread(gpointer opaque)
         GError *gerr = NULL;
         if (!same) {
             error = "The download was damaged on the way. Try again.";
-        } else if (!(dir = g_dir_make_tmp("BlackArrowOnline-update-XXXXXX",
+        } else if (!(dir = g_dir_make_tmp("XBemu-update-XXXXXX",
                                           &gerr))) {
             error = std::string("Could not save the update: ") + gerr->message;
             g_clear_error(&gerr);
@@ -538,12 +538,12 @@ gpointer SelfUpdateWindow::DownloadThread(gpointer opaque)
             }
             g_free(zip);
             gchar *script =
-                g_build_filename(dir, "BlackArrowOnline", "setup.sh", NULL);
+                g_build_filename(dir, "XBemu", "setup.sh", NULL);
 #if defined(__APPLE__)
-            gchar *app = g_build_filename(dir, "BlackArrowOnline",
-                                          "Black Arrow Online.app", NULL);
+            gchar *app = g_build_filename(dir, "XBemu",
+                                          "XBemu.app", NULL);
 #else
-            gchar *app = g_build_filename(dir, "BlackArrowOnline", "app",
+            gchar *app = g_build_filename(dir, "XBemu", "app",
                                           "AppRun", NULL);
 #endif
             if (error.empty()) {
@@ -595,8 +595,8 @@ static void Detach(gpointer)
 #if defined(__APPLE__)
 static const char *const relaunch_script = R"SH(
 setup="$1"; pid="$2"
-name="Black Arrow Online.app"
-log="$HOME/Library/Application Support/Black Arrow Online/system/update.log"
+name="XBemu.app"
+log="$HOME/Library/Application Support/XBemu/system/update.log"
 running() { pgrep -qf "$name/Contents/MacOS/" 2>/dev/null; }
 /bin/bash "$setup" --update "$pid"
 if [ -w /Applications ]; then app="/Applications/$name"; else app="$HOME/Applications/$name"; fi
@@ -743,7 +743,7 @@ void SelfUpdateWindow::DrawContents(State state)
         break;
     case AVAILABLE:
     case DOWNLOAD_FAILED:
-        ImGui::Text("Black Arrow Online build %s is ready",
+        ImGui::Text("XBemu build %s is ready",
                     BuildText(build).c_str());
         for (const std::string &line : changes) {
             ImGui::TextDisabled("- %s", line.c_str());
@@ -754,7 +754,7 @@ void SelfUpdateWindow::DrawContents(State state)
         if (state == DOWNLOAD_FAILED) {
             ImGui::TextColored(problem_color, "%s", error.c_str());
         }
-        ImGui::TextWrapped("Update now closes Black Arrow Online, installs "
+        ImGui::TextWrapped("Update now closes XBemu, installs "
                            "the new build and opens it again. Your console, "
                            "sign-in, saves, settings and games are kept.");
         break;
@@ -856,7 +856,7 @@ void SelfUpdateWindow::DrawWhatsNew()
     float scale = g_viewport_mgr.m_scale;
     PopupStackPlace();
     ImGui::SetNextWindowBgAlpha(0.92f);
-    if (ImGui::Begin("Black Arrow Online What's New", NULL,
+    if (ImGui::Begin("XBemu What's New", NULL,
                      ImGuiWindowFlags_NoDecoration |
                      ImGuiWindowFlags_NoFocusOnAppearing |
                      ImGuiWindowFlags_NoNav |
@@ -911,7 +911,7 @@ void SelfUpdateWindow::Draw()
                                 ImVec2(0.5f, 0.5f));
         ImGui::SetNextWindowSize(ImVec2(460.0f * scale, 0),
                                  ImGuiCond_Appearing);
-        if (ImGui::Begin("Black Arrow Online Update", &is_open,
+        if (ImGui::Begin("XBemu Update", &is_open,
                          ImGuiWindowFlags_NoCollapse |
                          ImGuiWindowFlags_NoSavedSettings |
                          ImGuiWindowFlags_AlwaysAutoResize)) {
@@ -931,7 +931,7 @@ void SelfUpdateWindow::Draw()
     }
     PopupStackPlace();
     ImGui::SetNextWindowBgAlpha(0.92f);
-    if (ImGui::Begin("Black Arrow Online Update Available", NULL,
+    if (ImGui::Begin("XBemu Update Available", NULL,
                      ImGuiWindowFlags_NoDecoration |
                      ImGuiWindowFlags_NoFocusOnAppearing |
                      ImGuiWindowFlags_NoNav |

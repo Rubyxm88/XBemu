@@ -1,7 +1,7 @@
-BLACK ARROW ONLINE FOR MAC
-=========================
+XBEMU FOR MAC
+============
 
-Rainbow Six 3: Black Arrow on XB Online, on a Mac. The Mac version is newer
+An original Xbox emulator for XB Online, on a Mac. The Mac version is newer
 than the Windows one: please report what you find (see REPORTING A PROBLEM).
 
 
@@ -14,15 +14,15 @@ help. In short:
 You need:
 - A Mac with macOS 11 (Big Sur) or later on Intel, or macOS 14 (Sonoma) or
   later on Apple Silicon (M1, M2...). Apple menu > About This Mac shows both.
-- The full Mac package (BlackArrowOnline-mac-...-full.zip), from where Black
-  Arrow Online is shared. It has the app and the Xbox files.
-- Your Rainbow Six 3: Black Arrow disc image (.iso).
+- The full Mac package (XBemu-mac-...-full.zip), from where XBemu is
+  shared. It has the app and the Xbox files.
+- Your game disc images (.iso).
 - A controller, if you play with one: pair it first (Bluetooth settings).
 
 1. Download the full package. Google Drive says it "can't scan this file for
    viruses" because the file is large: click Download anyway.
 
-2. Open Downloads in Finder. If you see a BlackArrowOnline folder, go on.
+2. Open Downloads in Finder. If you see a XBemu folder, go on.
    If you only see the .zip, double-click it once to unzip it. Leave the
    folder in Downloads.
 
@@ -30,7 +30,7 @@ You need:
 
 4. Copy this line exactly, paste it into Terminal (Cmd+V), press Return:
 
-     bash "$(ls -td ~/Downloads/BlackArrowOnline*/ | head -n 1)setup.sh"
+     bash "$(ls -td ~/Downloads/XBemu*/ | head -n 1)setup.sh"
 
    If macOS asks whether Terminal may access files in your Downloads folder,
    click OK. Wait until it says Done. Nothing else to type.
@@ -39,9 +39,9 @@ You need:
    console, and tells macOS the app is safe to open. You will not need
    "Open Anyway" in System Settings.
 
-5. A games folder opens. Drag your Black Arrow .iso into it.
+5. A games folder opens. Drag your game .iso files into it.
 
-6. Open Black Arrow Online from Applications (or Launchpad). If macOS asks
+6. Open XBemu from Applications (or Launchpad). If macOS asks
    whether the app may accept incoming network connections or find devices
    on your local network, click Allow: XB Online needs both.
 
@@ -53,20 +53,18 @@ FIRST START
 
 The menus are at the top of the emulator window.
 
-1. The first time, Black Arrow Online sets up your console: it installs
+1. The first time, XBemu sets up your console: it installs
    the XBL Dashboard on the console's hard disk (about a minute, with a
    progress bar; don't quit while it runs), then starts it. Sign in with
    your xb.live account.
    Need a code? Menu: XB Live > Link Code.
    No account yet? See NEW ACCOUNT below first.
 2. In the dashboard: Settings > Network, set the top option to XB Online.
-3. Menu: Play > Black Arrow Updates (stock), and follow the
-   prompts.
-4. Menu: Play > Play Rainbow Six 3 Black Arrow.
+3. Menu: Play > Load <game>. The disc goes in the tray; start it from
+   the XBL Dashboard's Disc tile.
 
-After that, Black Arrow Online starts in the XBL Dashboard; start the game
-from the Play menu. The original Xbox dashboard is kept as a backup:
-Play > Dashboard > Switch to Original Dashboard.
+After that, XBemu starts in the XBL Dashboard; load a game
+from the Play menu and start it from the dashboard.
 
 
 NEW ACCOUNT
@@ -83,13 +81,13 @@ Your gamertag then shows at the top of the XB Live menu.
 THE MENUS
 ---------
 
-Each menu has one job. Help > Black Arrow Online Guide has all of this
+Each menu has one job. Help > XBemu Guide has all of this
 inside the app, with buttons that do what it describes.
 
 MACHINE        Pause, Screenshot, Snapshot, Settings..., Reset, Exit.
-PLAY           Play <game> from the games folder (no games yet: opens the
-               games folder), Load Disc, Eject Disc, Black Arrow Updates
-               (stock), XBL Dashboard, Original Xbox Dashboard.
+PLAY           Load <game> from the games folder into the tray (no games
+               yet: opens the games folder), Load Disc, Eject Disc, XBL
+               Dashboard.
 XB LIVE        Account: <gamertag>, Create an Account (see NEW ACCOUNT),
                Link Code, Connection Check.
 SOUND          Sound quality (Fast or Accurate) and Louder movement.
@@ -100,9 +98,9 @@ GRAPHICS       Resolution, Enhanced graphics, fullscreen, window scaling,
 TROUBLESHOOT   Connection Check, Record Diagnostics Log, Mark Lag Spike (F9),
                Open Last Freeze Report, Shader Cache, Empty Game Cache (see
                GAME CACHE), Open Logs Folder.
-HELP           Black Arrow Online Guide, Versions & Updates, About.
+HELP           XBemu Guide, Versions & Updates, About.
 
-The build you have shows at the right of the menu bar ("BUILD 15"). An amber
+The build you have shows at the right of the menu bar . An amber
 dot on it means a newer build is out; click it for Versions & Updates.
 
 On a controller, press the Guide/Home button for the same options.
@@ -114,7 +112,7 @@ GAME CACHE
 
 The Xbox keeps a copy of files a game reads from its disc on the console's
 hard disk. When you play a changed disc image of the same game (a newer
-version or a mod), Black Arrow Online empties that copy by itself, so the
+version or a mod), XBemu empties that copy by itself, so the
 game reads the new disc; the first start after that takes a little longer.
 Saves, accounts and game updates are not touched. Troubleshoot > Empty Game
 Cache... empties it now and restarts the console.
@@ -131,20 +129,20 @@ are kept. Help > Versions & Updates... looks right away, and can also
 go back to an older build if the newest gives you trouble.
 
 If an update cannot be installed, the app says why the next time it opens.
-To update by hand instead, download BlackArrowOnline-mac-update.zip from the
+To update by hand instead, download XBemu-mac-update.zip from the
 newest build on the releases page into Downloads, unzip it, and paste the
 same Terminal line as in step 4 above:
-https://github.com/Rubyxm88/Black-Arrow-Online/releases
+https://github.com/Rubyxm88/XBemu/releases
 
 
 WHERE THINGS ARE
 ----------------
 
-The app:      Applications > Black Arrow Online
+The app:      Applications > XBemu
               (or Applications in your home folder, if your Mac account may
               not install apps; setup says which)
-Your console: ~/Library/Application Support/Black Arrow Online/system
-Your games:   ~/Library/Application Support/Black Arrow Online/games
+Your console: ~/Library/Application Support/XBemu/system
+Your games:   ~/Library/Application Support/XBemu/games
 
 To open one in Finder: Go > Go to Folder..., paste the path, press Return.
 
@@ -152,7 +150,7 @@ To start over with a new console (your current one, with its Xbox Live
 account and saves, is lost), paste this into Terminal instead of the line
 in step 4:
 
-  bash "$(ls -td ~/Downloads/BlackArrowOnline*/ | head -n 1)setup.sh" --start-over
+  bash "$(ls -td ~/Downloads/XBemu*/ | head -n 1)setup.sh" --start-over
 
 Already have an xemu console (xbox_hdd.qcow2 and eeprom.bin) you want to
 keep? Ask whoever shared the package before copying it in: it is not
@@ -163,9 +161,9 @@ REPORTING A PROBLEM
 -------------------
 
 The easy way: in the app, Troubleshoot > Make a Full Report, or open
-Applications and double-click "Black Arrow Report" (setup puts it next to
+Applications and double-click "XBemu Report" (setup puts it next to
 the app). If the game is stuck, do it while the game is
-still open. It makes a BlackArrow-report-....zip in Downloads with the logs,
+still open. It makes a XBemu-report-....zip in Downloads with the logs,
 your Mac's details and, if the game is open, what it is doing. Send that
 zip and a few words on what happened to whoever shared the package.
 

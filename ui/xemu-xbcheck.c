@@ -1,8 +1,8 @@
 /*
  * xemu XB Online connection check
  *
- * Looks at the things that stop Rainbow Six 3: Black Arrow from reaching
- * Xbox Live on another PC ("Xbox Live not found"): the console network, the
+ * Looks at the things that stop a game from reaching Xbox Live on XB
+ * Online ("Xbox Live not found"): the console network, the
  * XB Online DNS server, the PC clock, the game disc, the title update and the
  * machine account. Each result is shown on screen and written to xemu.log.
  *
@@ -334,7 +334,7 @@ static void check_route(void)
                  "Goes through \"%s\" (%s, %s), which looks like a VPN. VPNs "
                  "answer Xbox Live lookups themselves, so the game says Xbox "
                  "Live not found. Turn the VPN off (also its auto-connect and "
-                 "kill switch) and restart Black Arrow Online.",
+                 "kill switch) and restart XBemu.",
                  name, desc, ip);
     } else if (known) {
         item_set(i, XBCHECK_OK, "Through \"%s\" (%s), address %s.", name, desc,
@@ -523,60 +523,37 @@ static void check_disc(void)
 {
     int i = item_add("Game");
     const char *path = g_config.sys.files.dvd_path;
-    const char *hdd = g_config.sys.files.hdd_path;
     bool no_disc = !path || !path[0] || xemu_xbonline_is_system_disc(path);
     XemuRunningTitle running;
     XbOnlineXbe xbe;
-    char drive;
 
     /* A game a dashboard started from the hard disk has no disc */
     if (no_disc && xemu_running_title_get(&running)) {
-        if (running.title_id == XEMU_XBONLINE_TITLE_ID ||
-            running.title_id == XEMU_XBONLINE_RS3_TITLE_ID) {
-            item_set(i, XBCHECK_OK, "%s (version %u) is running from the "
-                     "hard disk.", running.name, running.version);
-        } else {
-            item_set(i, XBCHECK_INFO, "%s (title %08X) is running from the "
-                     "hard disk, not Black Arrow.", running.name,
-                     running.title_id);
-        }
+        item_set(i, XBCHECK_OK, "%s (title %08X, version %u) is running from "
+                 "the hard disk.", running.name, running.title_id,
+                 running.version);
         return;
     }
-    if (no_disc && hdd && hdd[0] &&
-        xemu_xbonline_hdd_installed_game(hdd, XEMU_XBONLINE_TITLE_ID, &xbe,
-                                         &drive) == 1) {
-        item_set(i, XBCHECK_OK, "%s (version %u) is installed on the hard "
-                 "disk (%c:\\Games). Start it from the Games page of the XBL "
-                 "Dashboard.", xbe.name, xbe.version, drive);
-        return;
-    }
-
-    if ((!path || !path[0] || xemu_xbonline_is_system_disc(path)) &&
-        games_in_folder() == 0) {
+    if (no_disc && games_in_folder() == 0) {
         item_set(i, XBCHECK_INFO,
-                 "No game yet. Copy your Black Arrow disc image (.iso) into "
-                 "the \"games\" folder, then pick it in the Play menu.");
+                 "No game yet. Copy your game disc images (.iso) into the "
+                 "\"games\" folder, then load one from the Play menu.");
         qemu_mutex_lock(&lock);
         items[i].action = XBCHECK_ACTION_OPEN_GAMES_FOLDER;
         qemu_mutex_unlock(&lock);
     } else if (!path || !path[0]) {
-        item_set(i, XBCHECK_INFO, "No disc loaded. To play, pick your game in "
-                 "the Play menu.");
+        item_set(i, XBCHECK_INFO, "No disc in the tray. Load a game from the "
+                 "Play menu, then start it from the XBL Dashboard.");
     } else if (xemu_xbonline_is_system_disc(path)) {
         item_set(i, XBCHECK_INFO, "A dashboard or setup disc is loaded, not "
-                 "the game. To play, pick your game in the Play menu.");
+                 "a game. Load a game from the Play menu.");
     } else if (!xemu_xbonline_disc_xbe(path, &xbe)) {
         item_set(i, XBCHECK_WARN,
                  "Could not read the loaded disc image as an Xbox disc. Use "
-                 "a plain .iso of the original Black Arrow disc.");
-    } else if (xbe.title_id == XEMU_XBONLINE_RS3_TITLE_ID) {
-        item_set(i, XBCHECK_OK, "Rainbow Six 3, disc version %u.",
-                 xbe.version);
-    } else if (xbe.title_id != XEMU_XBONLINE_TITLE_ID) {
-        item_set(i, XBCHECK_INFO, "%s (title %08X) is loaded, not Black Arrow.",
-                 xbe.name, xbe.title_id);
+                 "a plain .iso of an original Xbox disc.");
     } else {
-        item_set(i, XBCHECK_OK, "%s, disc version %u.", xbe.name, xbe.version);
+        item_set(i, XBCHECK_OK, "%s (title %08X), disc version %u.",
+                 xbe.name, xbe.title_id, xbe.version);
     }
 }
 
@@ -642,19 +619,39 @@ static void check_rs3_update(int i, const char *hdd, uint32_t disc_version)
     }
 }
 
+/*
+ * Only for the two games whose updates this build knows (Black Arrow and
+ * Rainbow Six 3, played by copies moved from Black Arrow Online). Any other
+ * game gets no "Game update" line.
+ */
 static void check_title_update(void)
 {
-    int i = item_add("Game update");
     const char *hdd = g_config.sys.files.hdd_path;
     const char *disc = g_config.sys.files.dvd_path;
+    XemuRunningTitle running;
     XbOnlineXbe xbe;
-    int maps, r;
+    uint32_t title = 0;
+    int i, maps, r;
 
-    if (hdd && hdd[0] && disc && disc[0] &&
-        !xemu_xbonline_is_system_disc(disc) &&
-        xemu_xbonline_disc_xbe(disc, &xbe) &&
-        xbe.title_id == XEMU_XBONLINE_RS3_TITLE_ID) {
-        check_rs3_update(i, hdd, xbe.version);
+    if (disc && disc[0] && !xemu_xbonline_is_system_disc(disc) &&
+        xemu_xbonline_disc_xbe(disc, &xbe)) {
+        title = xbe.title_id;
+    } else if (xemu_running_title_get(&running)) {
+        title = running.title_id;
+    }
+    if (title != XEMU_XBONLINE_TITLE_ID &&
+        title != XEMU_XBONLINE_RS3_TITLE_ID) {
+        return;
+    }
+    i = item_add("Game update");
+
+    if (title == XEMU_XBONLINE_RS3_TITLE_ID) {
+        if (hdd && hdd[0] && disc && disc[0]) {
+            check_rs3_update(i, hdd, xbe.version);
+        } else {
+            item_set(i, XBCHECK_INFO, "Load the Rainbow Six 3 disc to check "
+                     "its title update.");
+        }
         return;
     }
 

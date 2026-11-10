@@ -1,0 +1,7 @@
+tag=v0.4.4
+file=bios_v0.4.4.bin
+zip=oxos_v0.4.4.zip
+sha256=9c8c652486280f65c406ed851fc67defa4b6215c78cd40780efdde685692ebab
+source=https://github.com/kooscode/oxos/releases/tag/v0.4.4
+license=GPL-2.0
+tested=2026-11-10

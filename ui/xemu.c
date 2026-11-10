@@ -53,7 +53,7 @@
 #include "qemu/xemu-perf.h"
 
 #include "data/xemu_64x64.png.h"
-#include "data/bao_icon_64.png.h"
+#include "data/xbemu_icon_64.png.h"
 
 #include "hw/xbox/smbus.h" // For eject, drive tray
 #include "hw/xbox/nv2a/nv2a.h"
@@ -1391,7 +1391,7 @@ static void display_very_early_init(DisplayOptions *o)
 
     // xemu's own number only; "-1-xbl" is our tag
     int xemu_len = (int)strcspn(xemu_version, "-");
-    char *title = g_strdup_printf("Black Arrow Online  |  xemu %.*s"
+    char *title = g_strdup_printf("XBemu  |  xemu %.*s"
 #ifdef XEMU_DEBUG_BUILD
                                   " Debug"
 #endif
@@ -1474,7 +1474,7 @@ static void display_very_early_init(DisplayOptions *o)
 
     int width, height, channels = 0;
     stbi_set_flip_vertically_on_load(0);
-    unsigned char *icon_data = stbi_load_from_memory(bao_icon_64_data, bao_icon_64_size, &width, &height, &channels, 4);
+    unsigned char *icon_data = stbi_load_from_memory(xbemu_icon_64_data, xbemu_icon_64_size, &width, &height, &channels, 4);
     if (icon_data) {
         SDL_Surface *icon = SDL_CreateSurfaceFrom(width, height, SDL_PIXELFORMAT_RGBA32, icon_data, width*4);
         if (icon) {

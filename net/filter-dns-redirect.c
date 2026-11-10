@@ -8,7 +8,7 @@
  * With 'fallback' set, the Xbox Live names XB Online serves are also checked:
  * when the reply for one of them carries another address (a VPN, ISP or router
  * answering DNS itself) or no reply arrives in time, the filter answers the
- * guest from a built-in list instead (see black-arrow-online/xbl-hosts.txt).
+ * guest from a built-in list instead (see xbemu/xbl-hosts.txt).
  * XEMU_DNS_FALLBACK_TEST_NAME adds up to four more names (comma separated),
  * to test with names the console looks up by itself.
  *

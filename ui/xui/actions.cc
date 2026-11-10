@@ -513,7 +513,7 @@ bool ActionRestartApp()
 {
     xemu_settings_save();
     if (!StartAgainAfterExit()) {
-        xemu_queue_error_message("Could not open Black Arrow Online again. "
+        xemu_queue_error_message("Could not open XBemu again. "
                                  "Close it and open it yourself.");
         return false;
     }

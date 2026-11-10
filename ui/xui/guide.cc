@@ -1,5 +1,5 @@
 //
-// xemu User Interface: Black Arrow Online guide (Help > Black Arrow Online
+// xemu User Interface: XBemu guide (Help > XBemu
 // Guide...)
 //
 // The package README, inside the app: topics on the left, the chosen one on
@@ -52,7 +52,6 @@ static void OpenXblDashboard() { ActionXboxLiveSetup(); }
 static void OpenLinkCode() { SDL_OpenURL(XEMU_XBONLINE_URL_LINK); }
 static void OpenCreateAccount() { SDL_OpenURL(XEMU_XBONLINE_URL_CREATE); }
 static void RunConnectionCheck() { xbcheck_window.Start(true); }
-static void InstallRs3Updates() { ActionPlayDiscFile(XEMU_XBONLINE_RS3_UPDATE_DISC); }
 static void OpenShaderCache() { shader_cache_window.Open(); }
 static void OpenGameCache() { game_cache_window.Open(); }
 static void OpenLogs() { xemu_diag_open_folder(); }
@@ -64,42 +63,44 @@ static const char *const start_text[] = {
 #if defined(__APPLE__)
     "- Install with the Terminal line from README.txt (setup.sh). It puts "
     "the app in Applications and sets up your console.",
-    "- Drag your Black Arrow disc image (.iso) into the games folder that "
+    "- Drag your game disc images (.iso) into the games folder that "
     "opens (Open Games Folder below).",
-    "- Open Black Arrow Online from Applications. When macOS asks whether it "
+    "- Open XBemu from Applications. When macOS asks whether it "
     "may accept incoming network connections or find devices on your local "
     "network, click Allow: XB Online needs both.",
 #elif defined(__linux__)
-    "- Install with setup.sh (README.txt says how). It adds Black Arrow "
-    "Online to your applications menu and sets up your console.",
-    "- Copy your Black Arrow disc image (.iso) into the games folder that "
+    "- Install with setup.sh (README.txt says how). It adds XBemu to "
+    "your applications menu and sets up your console.",
+    "- Copy your game disc images (.iso) into the games folder that "
     "opens (Open Games Folder below).",
-    "- Start Black Arrow Online from your applications menu. On a Steam Deck, "
+    "- Start XBemu from your applications menu. On a Steam Deck, "
     "add it to Steam to play it in Game Mode (README.txt).",
 #else
-    "- Copy your Black Arrow disc image (.iso) into the \"games\" folder.",
-    "- Start Black Arrow Online. A setup window appears once: Start clean "
+    "- Copy your game disc images (.iso) into the \"games\" folder.",
+    "- Start XBemu. A setup window appears once: Start clean "
     "for a brand new console, or Use my existing xemu files to bring your own "
     "hard disk (xbox_hdd.qcow2) and console identity (eeprom.bin).",
 #endif
-    "- The XBL Dashboard opens. Sign in with your xb.live account. No account "
+    "- The XBL Dashboard installs itself (about a minute, once), then "
+    "opens. Sign in with your xb.live account. No account "
     "yet? See Xbox Live Account first.",
     "- In the dashboard: Settings > Network, set the top option to XB Online.",
-    "- Install the game updates (see Game Updates), then play:",
-    "> Play > Play Rainbow Six 3 Black Arrow",
+    "- Put a game in the tray, like pushing a disc into a real Xbox:",
+    "> Play > Load <game>",
+    "- Start it from the XBL Dashboard's Disc tile.",
     "# Every time after that",
-    "Start Black Arrow Online and it goes straight to the game. With no game "
-    "in the games folder it opens the XBL Dashboard instead.",
+    "Start XBemu and it opens the XBL Dashboard. Games always start from "
+    "the dashboard, never straight from the menu.",
     NULL
 };
 
 static const char *const menus_text[] = {
     "# Machine",
-    "Pause, screenshots, snapshots, Settings... (controllers, audio device, "
-    "network), Reset and Exit.",
+    "Pause, screenshots, snapshots, BIOS, Settings... (controllers, audio "
+    "device, network), Reset and Exit.",
     "# Play",
-    "Every game in the games folder, Load Disc and Eject Disc, the game "
-    "update installers and the two dashboards.",
+    "Load a game from the games folder into the tray, Load Disc and Eject "
+    "Disc, and the XBL Dashboard.",
     "# XB Live",
     "Your Xbox Live account (opens xb.live), Create an Account, Link Code and "
     "the Connection Check.",
@@ -134,18 +135,14 @@ static const char *const account_text[] = {
     NULL
 };
 
-static const char *const updates_text[] = {
-    "# Black Arrow",
-    "Nothing to install: the XBL Dashboard installs and updates the game.",
-    "# Rainbow Six 3 (Old Bow)",
-    "Rainbow Six 3 has its own installer, Play > Old Bow Updates "
-    "(stock). Its title update must fit your disc, or the game will not "
-    "start:",
-    "- Disc version 1 (all regions): Game Update Menu > Install Update RF",
-    "- Disc version 2 (PAL German): Game Update Menu > Install Update Ger",
-    "- Disc version 3 or 4: no update, it is already on the disc",
-    "With the Rainbow Six 3 disc loaded, the Connection Check says which. "
-    "Skip \"Old Scharins\": it breaks multiplayer with Scharins v2.",
+static const char *const bios_text[] = {
+    "XBemu runs OXOS, the open-source Xbox BIOS (github.com/kooscode/oxos). "
+    "It comes with XBemu; no Microsoft files are included.",
+    "Some disc games freeze on their loading screen with OXOS. If you have "
+    "your own Xbox BIOS and MCPX boot ROM, put them in the system folder as "
+    "Complex_4627v1.03.bin and mcpx.bin, then:",
+    "> Machine > BIOS > Stock BIOS, then Restart to Apply",
+    "Game updates come through the XBL Dashboard when a game offers them.",
     NULL
 };
 
@@ -177,9 +174,9 @@ static const char *const settings_text[] = {
     "easier to hear nearby.",
     "# Shaders",
     "The first time an effect appears (a map, night vision, a menu) your "
-    "graphics card builds a shader for it, which used to make the game hitch. "
-    "Black Arrow Online ships a list of the game's shaders and builds the "
-    "missing ones in the background a few seconds after starting. It happens "
+    "graphics card builds a shader for it, which can make a game hitch. "
+    "XBemu keeps the shaders each game used and builds the "
+    "missing ones in the background a few seconds after it starts. It happens "
     "again only after a graphics driver update or a resolution change.",
     "# Performance overlay",
     "Graphics > Performance Overlay > Show performance overlay: frame rate, "
@@ -197,7 +194,7 @@ static const char *const trouble_text[] = {
     "- Clock: sign-in fails when the Mac's clock or time zone is wrong. Set "
     "both automatically in System Settings > General > Date & Time.",
     "- Local network: System Settings > Privacy & Security > Local Network "
-    "must allow Black Arrow Online.",
+    "must allow XBemu.",
 #elif defined(__linux__)
     "- Clock: sign-in fails when the computer's clock or time zone is wrong. "
     "Set both automatically in your system's Date & Time settings.",
@@ -210,10 +207,10 @@ static const char *const trouble_text[] = {
     "- Close any other emulator or game, then start again.",
 #if defined(__APPLE__)
     "- Still failing: Troubleshoot > Make a Full Report (or double-click "
-    "Black Arrow Report in Applications) and send the zip it makes in "
+    "XBemu Report in Applications) and send the zip it makes in "
     "Downloads to whoever shared the package.",
 #elif defined(__linux__)
-    "- Still failing: Troubleshoot > Make a Full Report (or Black Arrow "
+    "- Still failing: Troubleshoot > Make a Full Report (or XBemu "
     "Report in your applications menu) and send the file it makes in "
     "Downloads to whoever shared the package.",
 #else
@@ -256,9 +253,9 @@ static const char *const hosting_text[] = {
     "- Players over the internet can join only if your router forwards UDP "
     "port 3074 to this PC.",
 #if defined(__APPLE__)
-    "- Only one copy of Black Arrow Online per Mac can host.",
+    "- Only one copy of XBemu per Mac can host.",
 #else
-    "- Only one copy of Black Arrow Online per PC can host.",
+    "- Only one copy of XBemu per PC can host.",
 #endif
     NULL
 };
@@ -270,16 +267,17 @@ static const char *const versions_text[] = {
     "and opens it again on the new build within about a minute.",
 #elif defined(__linux__)
     "When a newer build is out, a small panel in the top left says so a few "
-    "seconds after Black Arrow Online starts. Update now downloads it, closes "
-    "Black Arrow Online and opens it again on the new build.",
+    "seconds after XBemu starts. Update now downloads it, closes "
+    "XBemu and opens it again on the new build.",
 #else
-    "When a newer build is out, Black Arrow Online offers it when you start.",
+    "When a newer build is out, XBemu offers it when you start.",
 #endif
     "Help > Versions & Updates lists every build: install the newest, or go "
     "back to an earlier one if a new build gives you trouble. It asks first, "
-    "then closes Black Arrow Online, installs the build and opens it again.",
-    "Tick Get beta builds there to be offered test builds (such as 27.3.1) "
-    "before everyone else. They may have problems.",
+    "then closes XBemu, installs the build and opens it again.",
+    "Stable | Beta, at the top right of that window: Beta also offers test "
+    "builds (such as 1.0.1) before everyone else. They may have problems. "
+    "Back on Stable you can return to the latest stable build right away.",
 #if defined(__APPLE__) || defined(__linux__)
     "An update replaces the app only. Your console, Xbox Live sign-in, saves, "
     "settings and games are kept.",
@@ -290,19 +288,15 @@ static const char *const versions_text[] = {
     "Builds marked Broken can not be installed: they had a problem that was "
     "found after they came out.",
 #if defined(__APPLE__)
-    "Build 14 does not have this window. To come back from it, choose Update "
-    "now when the app offers the newest build after starting.",
     "If an update cannot be installed, the app says why the next time it "
-    "opens. To update by hand, download BlackArrowOnline-mac-update.zip from "
+    "opens. To update by hand, download XBemu-mac-update.zip from "
     "the releases page and run the Terminal line from README.txt.",
 #elif defined(__linux__)
-    "If an update cannot be installed, Black Arrow Online says why the next "
+    "If an update cannot be installed, XBemu says why the next "
     "time it opens. To update by hand, download "
-    "BlackArrowOnline-linux-update.tar.gz from the releases page, unpack it "
+    "XBemu-linux-update.tar.gz from the releases page, unpack it "
     "and run its setup.sh.",
 #else
-    "Builds before 15 do not have this window. To come back from one, choose "
-    "Update now when the launcher offers the newest build at the start.",
     "To turn the check at start off, create an empty file "
     "system\\no-update-check.txt.",
 #endif
@@ -312,10 +306,10 @@ static const char *const versions_text[] = {
 static const char *const files_text[] = {
 #if defined(__APPLE__)
     "# Where things are",
-    "- The app: Applications > Black Arrow Online (or Applications in your "
+    "- The app: Applications > XBemu (or Applications in your "
     "home folder, if setup said so).",
-    "- Your console: ~/Library/Application Support/Black Arrow Online/system",
-    "- Your games: ~/Library/Application Support/Black Arrow Online/games",
+    "- Your console: ~/Library/Application Support/XBemu/system",
+    "- Your games: ~/Library/Application Support/XBemu/games",
     "To open one in Finder: Go > Go to Folder..., paste the path, press "
     "Return.",
     "# Starting over",
@@ -329,7 +323,7 @@ static const char *const files_text[] = {
     "To change it: Machine > Settings... > Input.",
 #elif defined(__linux__)
     "# Where things are",
-    "- Everything: ~/.local/share/Black Arrow Online (a hidden folder in your "
+    "- Everything: ~/.local/share/XBemu (a hidden folder in your "
     "home folder; Ctrl+H shows hidden folders in most file managers).",
     "- Your console: its system folder. Your games: its games folder.",
     "# Starting over",
@@ -365,8 +359,7 @@ static const GuidePage pages[] = {
     { "Xbox Live Account", account_text,
       { { "Create an Account", OpenCreateAccount },
         { "Link Code", OpenLinkCode } } },
-    { "Game Updates", updates_text,
-      { { "Old Bow Updates", InstallRs3Updates } } },
+    { "BIOS & Game Updates", bios_text, {} },
     { "Graphics & Sound", settings_text,
       { { "Shader Cache...", OpenShaderCache } } },
     { "Troubleshooting", trouble_text,
@@ -390,7 +383,7 @@ void GuideWindow::Open(int page)
 {
     is_open = true;
     m_page = page;
-    ImGui::SetWindowFocus("Black Arrow Online Guide");
+    ImGui::SetWindowFocus("XBemu Guide");
 }
 
 static void DrawText(const char *const *text)
@@ -435,7 +428,7 @@ void GuideWindow::Draw()
     ImGui::SetNextWindowPos(
         ImVec2(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f),
         ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
-    if (!ImGui::Begin("Black Arrow Online Guide", &is_open,
+    if (!ImGui::Begin("XBemu Guide", &is_open,
                       ImGuiWindowFlags_NoCollapse |
                       ImGuiWindowFlags_NoSavedSettings)) {
         ImGui::End();

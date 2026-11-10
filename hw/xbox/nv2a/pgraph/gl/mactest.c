@@ -15,7 +15,7 @@
  *  - any OpenGL error after a draw
  *  - every 30 s, how many draws were made
  *  - after the first draw of each new kind, the textures used and the render
- *    target as pictures in ~/Downloads/BlackArrow-mactest-<time>
+ *    target as pictures in ~/Downloads/XBemu-mactest-<time>
  *
  * DXT textures are tested too, through xemu's CPU decoder.
  *
@@ -541,7 +541,7 @@ void pgraph_gl_mactest_texture(PGRAPHState *pg, int stage,
 /*
  * Pictures: after the first draw of each new kind, the textures it used and
  * the render target it drew into, as TGA files in
- * ~/Downloads/BlackArrow-mactest-<time>. Capped so the folder stays small
+ * ~/Downloads/XBemu-mactest-<time>. Capped so the folder stays small
  * enough to zip and send.
  */
 #define MACTEST_MAX_DUMP_KINDS 60
@@ -559,7 +559,7 @@ static bool mactest_dump_dir_ready(void)
     GDateTime *now = g_date_time_new_now_local();
     gchar *stamp = g_date_time_format(now, "%Y-%m-%d_%H%M%S");
     g_date_time_unref(now);
-    gchar *name = g_strdup_printf("BlackArrow-mactest-%s", stamp);
+    gchar *name = g_strdup_printf("XBemu-mactest-%s", stamp);
     g_free(stamp);
     char *dir = g_build_filename(g_get_home_dir(), "Downloads", name, NULL);
     g_free(name);

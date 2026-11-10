@@ -1,5 +1,5 @@
 //
-// xemu User Interface: Black Arrow Online updates on a Mac and on Linux
+// xemu User Interface: XBemu updates on a Mac and on Linux
 //
 // This program is free software; you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by

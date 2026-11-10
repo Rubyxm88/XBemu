@@ -314,7 +314,7 @@ void ShaderCacheWindow::Draw()
     }
     if (m_cleared_time >= 0 && ImGui::GetTime() - m_cleared_time < 8.0) {
         ImGui::TextWrapped("Cache cleared. Shaders already in use stay until "
-                           "Black Arrow Online is restarted.");
+                           "XBemu is restarted.");
     }
     if (m_confirm_clear) {
         ImGui::Separator();

@@ -1,5 +1,5 @@
 //
-// xemu User Interface: Black Arrow Online guide (Help > Black Arrow Online
+// xemu User Interface: XBemu guide (Help > XBemu
 // Guide...)
 //
 // This program is free software; you can redistribute it and/or modify

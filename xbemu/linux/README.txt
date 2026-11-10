@@ -1,7 +1,7 @@
-BLACK ARROW ONLINE FOR LINUX
-============================
+XBEMU FOR LINUX
+===============
 
-Rainbow Six 3: Black Arrow on XB Online, on Linux and the Steam Deck. The
+An original Xbox emulator for XB Online, on Linux and the Steam Deck. The
 Linux version is new: please report what you find (see REPORTING A PROBLEM).
 
 
@@ -12,18 +12,18 @@ You need:
 - A 64-bit PC (x86_64) with a desktop Linux from 2022 or later: Ubuntu
   22.04, Linux Mint 21, Fedora 36, SteamOS 3, Arch... and graphics drivers
   with OpenGL 4.0 or Vulkan (any graphics card from the last ten years).
-- The full Linux package (BlackArrowOnline-linux-...-full.tar.gz), from
-  where Black Arrow Online is shared. It has the app and the Xbox files.
-- Your Rainbow Six 3: Black Arrow disc image (.iso).
+- The full Linux package (XBemu-linux-...-full.tar.gz), from
+  where XBemu is shared. It has the app and the Xbox files.
+- Your game disc images (.iso).
 
 1. Download the full package. Google Drive says it "can't scan this file for
    viruses" because the file is large: click Download anyway.
 
 2. Unpack it: right-click it in your file manager and choose Extract Here
    (Steam Deck: switch to Desktop Mode first, then use Dolphin). You get a
-   BlackArrowOnline folder.
+   XBemu folder.
 
-3. Open a terminal in that folder: right-click inside the BlackArrowOnline
+3. Open a terminal in that folder: right-click inside the XBemu
    folder and choose Open Terminal Here (or Open in Terminal). Type this and
    press Enter:
 
@@ -33,11 +33,11 @@ You need:
    writes to your own home folder.
 
    This installs the app, sets up the Xbox files and your console, and adds
-   Black Arrow Online and Black Arrow Report to your applications menu.
+   XBemu and XBemu Report to your applications menu.
 
-4. A games folder opens. Copy your Black Arrow .iso into it.
+4. A games folder opens. Copy your game .iso files into it.
 
-5. Start Black Arrow Online from your applications menu (Steam Deck: the
+5. Start XBemu from your applications menu (Steam Deck: the
    Games section of the application launcher).
 
 You can delete the downloaded file and folder afterwards.
@@ -46,7 +46,7 @@ You can delete the downloaded file and folder afterwards.
 STEAM DECK: GAME MODE
 ---------------------
 
-In Desktop Mode, open the application launcher, find Black Arrow Online
+In Desktop Mode, open the application launcher, find XBemu
 under Games, right-click it and choose Add to Steam. Back in Game Mode it is
 in your library under Non-Steam. The emulator's menus open with a
 controller's Guide button, which the Steam button keeps for itself: in the
@@ -59,20 +59,18 @@ FIRST START
 
 The menus are at the top of the emulator window.
 
-1. The first time, Black Arrow Online sets up your console: it installs
+1. The first time, XBemu sets up your console: it installs
    the XBL Dashboard on the console's hard disk (about a minute, with a
    progress bar; don't quit while it runs), then starts it. Sign in with
    your xb.live account.
    Need a code? Menu: XB Live > Link Code.
    No account yet? See NEW ACCOUNT below first.
 2. In the dashboard: Settings > Network, set the top option to XB Online.
-3. Menu: Play > Black Arrow Updates (stock), and follow the
-   prompts.
-4. Menu: Play > Play Rainbow Six 3 Black Arrow.
+3. Menu: Play > Load <game>. The disc goes in the tray; start it from
+   the XBL Dashboard's Disc tile.
 
-After that, Black Arrow Online starts in the XBL Dashboard; start the game
-from the Play menu. The original Xbox dashboard is kept as a backup:
-Play > Dashboard > Switch to Original Dashboard.
+After that, XBemu starts in the XBL Dashboard; load a game
+from the Play menu and start it from the dashboard.
 
 
 NEW ACCOUNT
@@ -89,13 +87,13 @@ Your gamertag then shows at the top of the XB Live menu.
 THE MENUS
 ---------
 
-Each menu has one job. Help > Black Arrow Online Guide has all of this
+Each menu has one job. Help > XBemu Guide has all of this
 inside the app, with buttons that do what it describes.
 
 MACHINE        Pause, Screenshot, Snapshot, Settings..., Reset, Exit.
-PLAY           Play <game> from the games folder (no games yet: opens the
-               games folder), Load Disc, Eject Disc, the game update
-               installers, XBL Dashboard, Original Xbox Dashboard.
+PLAY           Load <game> from the games folder into the tray (no games
+               yet: opens the games folder), Load Disc, Eject Disc, XBL
+               Dashboard.
 XB LIVE        Account: <gamertag>, Create an Account (see NEW ACCOUNT),
                Link Code, Connection Check.
 SOUND          Sound quality (Fast Enhanced or Accurate), 5.1 surround and
@@ -106,7 +104,7 @@ GRAPHICS       Resolution, Enhanced graphics, fullscreen (F11), window
 TROUBLESHOOT   Connection Check, Record Diagnostics Log, Mark Lag Spike (F9),
                Open Last Freeze Report, Shader Cache, Empty Game Cache, Open
                Logs Folder.
-HELP           Black Arrow Online Guide, Versions & Updates, About.
+HELP           XBemu Guide, Versions & Updates, About.
 
 The build you have shows at the right of the menu bar. An amber dot on it
 means a newer build is out; click it for Versions & Updates.
@@ -125,16 +123,16 @@ Help > Versions & Updates... looks right away, and can also go back to an
 older build if the newest gives you trouble.
 
 If an update cannot be installed, the app says why the next time it opens.
-To update by hand instead, download BlackArrowOnline-linux-update.tar.gz
+To update by hand instead, download XBemu-linux-update.tar.gz
 from the newest build on the releases page, unpack it, and run its setup.sh
 as in step 3 above:
-https://github.com/Rubyxm88/Black-Arrow-Online/releases
+https://github.com/Rubyxm88/XBemu/releases
 
 
 WHERE THINGS ARE
 ----------------
 
-Everything is in ~/.local/share/Black Arrow Online (a hidden folder in your
+Everything is in ~/.local/share/XBemu (a hidden folder in your
 home folder; Ctrl+H shows hidden folders in most file managers):
 
 app/       the emulator (replaced by every update)
@@ -163,8 +161,8 @@ REPORTING A PROBLEM
 -------------------
 
 The easy way: in the app, Troubleshoot > Make a Full Report, or start
-"Black Arrow Report" from your applications menu. If the game is stuck, do
-it while the game is still open. It makes a BlackArrow-report-....tar.gz in
+"XBemu Report" from your applications menu. If the game is stuck, do
+it while the game is still open. It makes a XBemu-report-....tar.gz in
 Downloads with the logs, your computer's details and, if the game is open,
 what it is doing. A small window says where the file is when it is done.
 Send that file and a few words on what happened to whoever shared the

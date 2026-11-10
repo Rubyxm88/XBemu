@@ -228,7 +228,7 @@ void XbCheckWindow::Draw()
     } else if (problem) {
         ImGui::TextColored(ImVec4(1.0f, 0.55f, 0.35f, 1.0f),
                            "XB Online check: fix the items below, then "
-                           "restart Black Arrow Online");
+                           "restart XBemu");
     } else {
         ImGui::TextColored(ImVec4(0.45f, 0.9f, 0.45f, 1.0f),
                            "XB Online check: all good");

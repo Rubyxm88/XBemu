@@ -1,4 +1,4 @@
-// Black Arrow Online launcher.
+// XBemu launcher.
 //
 // Starts xemu from the "system" folder next to this program. When no hard
 // disk has been set up yet it first sets up a new console (xemu then makes
@@ -89,7 +89,7 @@ static class Launcher
         if (!File.Exists(Path.Combine(systemDir, "xemu.exe"))) {
             MessageBox.Show("The \"system\" folder is missing or incomplete.\n\n" +
                             "Unzip the whole package and start it from there.",
-                            "Black Arrow Online", MessageBoxButtons.OK,
+                            "XBemu", MessageBoxButtons.OK,
                             MessageBoxIcon.Warning);
             return 1;
         }
@@ -226,7 +226,7 @@ static class Launcher
     // part of the builds published on the releases page. They come in a
     // separate zip, the content pack, laid out like the package folder.
 
-    public const string ContentPackName = "BlackArrowOnline-content.zip";
+    public const string ContentPackName = "XBemu-content.zip";
     const string ContentMarker = "system/content.txt";
 
     const string DefaultSettings =
@@ -254,9 +254,8 @@ static class Launcher
         "[sys]\n" +
         "mem_limit = '128'\n" +
         "\n" +
+        // The BIOS lines are written by Bios.Apply before each start
         "[sys.files]\n" +
-        "bootrom_path = '" + BundledMcpx + "'\n" +
-        "flashrom_path = '" + BundledBios + "'\n" +
         "eeprom_path = 'eeprom.bin'\n" +
         "hdd_path = 'xbox_hdd.qcow2'\n";
 
@@ -273,17 +272,26 @@ static class Launcher
         }
     }
 
-    static bool HasBundled(string name)
+    public static bool HasBundled(string name)
     {
         return File.Exists(Path.Combine(systemDir, name));
     }
 
-    // Whether a clean start is impossible until the content pack is added
+    // Whether this folder has the Microsoft BIOS and MCPX (a copy moved from
+    // Black Arrow Online, or files the player added). XBemu itself ships
+    // only OXOS.
+    public static bool HasStockBios
+    {
+        get { return HasBundled(BundledBios) && HasBundled(BundledMcpx); }
+    }
+
+    // Whether a clean start is impossible until the content pack is added:
+    // the blank hard disk, and a BIOS (OXOS in the package, or stock)
     public static bool ContentMissing
     {
         get {
-            return !HasBundled(BundledBios) || !HasBundled(BundledMcpx) ||
-                   !File.Exists(Path.Combine(systemDir, "fresh", "xbox_hdd.qcow2"));
+            return !File.Exists(Path.Combine(systemDir, "fresh", "xbox_hdd.qcow2")) ||
+                   (!HasStockBios && !Bios.OxosAvailable);
         }
     }
 
@@ -300,7 +308,7 @@ static class Launcher
     {
         foreach (string dir in new[] { AppDomain.CurrentDomain.BaseDirectory, DownloadsDir }) {
             try {
-                string found = Directory.GetFiles(dir, "BlackArrowOnline-content*.zip")
+                string found = Directory.GetFiles(dir, "XBemu-content*.zip")
                     .OrderByDescending(f => File.GetLastWriteTimeUtc(f)).FirstOrDefault();
                 if (found != null) {
                     return found;
@@ -333,7 +341,7 @@ static class Launcher
             if (!archive.Entries.Any(e => e.FullName.Replace('\\', '/').Equals(
                     ContentMarker, StringComparison.OrdinalIgnoreCase))) {
                 throw new InvalidOperationException(
-                    "That is not a Black Arrow Online content pack.\n\n" +
+                    "That is not an XBemu content pack.\n\n" +
                     "It is a zip named " + ContentPackName + ".");
             }
             long total = Math.Max(archive.Entries.Sum(e => e.Length), 1), done = 0;
@@ -376,8 +384,11 @@ static class Launcher
         }
         CopyFile(Path.Combine(systemDir, "fresh", "xbox_hdd.qcow2"), hddTarget, progress);
         File.Delete(eepromTarget);
-        SetTomlPath("flashrom_path", BundledBios);
-        SetTomlPath("bootrom_path", BundledMcpx);
+        // OXOS (the default) is set by Bios.Apply right before xemu starts
+        if (HasStockBios) {
+            SetSysFile("flashrom_path", BundledBios);
+            SetSysFile("bootrom_path", BundledMcpx);
+        }
         ClearFirstRunState();
     }
 
@@ -393,8 +404,9 @@ static class Launcher
               "An Xbox BIOS file is 256 KB or 1 MB.");
         Check(mcpx, "MCPX boot ROM", false, n => n == 512,
               "An MCPX boot ROM file is exactly 512 bytes.");
-        if ((string.IsNullOrEmpty(bios) && !HasBundled(BundledBios)) ||
-            (string.IsNullOrEmpty(mcpx) && !HasBundled(BundledMcpx))) {
+        if (!Bios.OxosAvailable &&
+            ((string.IsNullOrEmpty(bios) && !HasBundled(BundledBios)) ||
+             (string.IsNullOrEmpty(mcpx) && !HasBundled(BundledMcpx)))) {
             throw new InvalidOperationException(
                 "This folder has no BIOS and MCPX boot ROM yet.\n\n" +
                 "Choose your own BIOS and MCPX files, or add the content pack first.");
@@ -540,12 +552,12 @@ static class Launcher
         }
     }
 
-    // Our logo, built into the launcher (csc /resource:...,bao_logo.png)
+    // Our logo, built into the launcher (csc /resource:...,xbemu_logo.png)
     public static Image Logo()
     {
         try {
             var stream = typeof(Launcher).Assembly
-                             .GetManifestResourceStream("bao_logo.png");
+                             .GetManifestResourceStream("xbemu_logo.png");
             return stream == null ? null : Image.FromStream(stream);
         } catch (Exception) {
             return null;
@@ -565,8 +577,8 @@ static class Launcher
 // A build is a whole number (26), a sub build of it (26.1, 26.2...) that
 // updates only some systems, or a beta of either (27.3.1) that only the beta
 // channel gets. version.txt keeps "build=26", which launchers before 26 read,
-// and adds "sub=1" and "beta=1"; the release tags are build-26.1 and
-// build-27.3.1. Code holds all three as one number, for comparing:
+// and adds "sub=1" and "beta=1"; the release tags are xbemu-1.1 and
+// xbemu-1.0.1. Code holds all three as one number, for comparing:
 // Build * 10000 + Sub * 100 + Beta (260100 for 26.1, 270301 for 27.3.1).
 class UpdateInfo
 {
@@ -607,8 +619,8 @@ class UpdateInfo
 static class Updater
 {
     public const string ReleasesPage =
-        "https://github.com/Rubyxm88/Black-Arrow-Online/releases";
-    const string PackageName = "BlackArrowOnline-update.zip";
+        "https://github.com/Rubyxm88/XBemu/releases";
+    const string PackageName = "XBemu-update.zip";
     const int CheckTimeoutMs = 5000;
 
     // Files that belong to the player's console and are never replaced
@@ -691,7 +703,7 @@ static class Updater
         request.Timeout = timeoutMs;
         var http = request as HttpWebRequest;
         if (http != null) {
-            http.UserAgent = "BlackArrowOnline-Launcher";
+            http.UserAgent = "XBemu-Launcher";
             http.ReadWriteTimeout = timeoutMs;
         }
         return request;
@@ -711,11 +723,11 @@ static class Updater
         }
     }
 
-    // Betas are pre-releases with a three-part tag (build-27.3.1), so the
+    // Betas are pre-releases with a three-part tag (xbemu-1.0.1), so the
     // releases page never calls one the latest. BAO_RELEASES_API points this
     // somewhere else, for testing.
     const string ReleasesApi =
-        "https://api.github.com/repos/Rubyxm88/Black-Arrow-Online/releases?per_page=30";
+        "https://api.github.com/repos/Rubyxm88/XBemu/releases?per_page=30";
 
     // The newest beta newer than "above" and not skipped, with the place of
     // its files, or null
@@ -729,7 +741,7 @@ static class Updater
             list = reader.ReadToEnd();
         }
         var codes = new List<int>();
-        foreach (Match m in Regex.Matches(list, @"""tag_name""\s*:\s*""build-(\d+\.\d+\.\d+)""")) {
+        foreach (Match m in Regex.Matches(list, @"""tag_name""\s*:\s*""xbemu-(\d+\.\d+\.\d+)""")) {
             int code = UpdateInfo.CodeFromText(m.Groups[1].Value);
             if (code % 100 != 0 && code > above && code != skipped) {
                 codes.Add(code);
@@ -807,7 +819,7 @@ static class Updater
         if (string.IsNullOrEmpty(from)) {
             from = ReleasesPage + "/download/";
         }
-        string url = (from.EndsWith("/") ? from : from + "/") + "build-" + build + "/";
+        string url = (from.EndsWith("/") ? from : from + "/") + "xbemu-" + build + "/";
         UpdateInfo info;
         try {
             using (WebResponse response = Request(url + "version.txt", 15000).GetResponse())
@@ -868,6 +880,7 @@ static class Updater
             loose.AddRange(Directory.GetFiles(Launcher.systemDir, "xemu.previous.exe"));
             loose.AddRange(Directory.GetFiles(Launcher.systemDir, "xemu-*.exe"));
             loose.AddRange(Directory.GetFiles(root, "Black Arrow Online-*.exe"));
+            loose.AddRange(Directory.GetFiles(root, "XBemu-*.exe"));
             foreach (string file in loose) {
                 Directory.CreateDirectory(BackupsDir);
                 string to = Path.Combine(BackupsDir, Path.GetFileName(file));
@@ -993,17 +1006,21 @@ static class Updater
 
 }
 
-// --- OXOS BIOS (beta) ---
+// --- OXOS BIOS (the default) ---
 //
-// A player can pick OXOS, the open-source Xbox BIOS (github.com/kooscode/oxos),
-// in xemu: Machine > BIOS. xemu writes system\bios-choice.txt ("oxos" or
-// "stock") and restarts through this launcher. Each package names the OXOS
-// version we tested in system\oxos.txt (tag, file, zip, sha256). Here, before
-// xemu starts:
-//   - OXOS chosen: the tested version is downloaded once from the OXOS
-//     release on GitHub (the .bin if it is published on its own, otherwise
-//     the release zip, from which only that .bin is taken), checked against
-//     the SHA-256 and kept in system\bios\. xemu then uses it with no MCPX.
+// XBemu runs OXOS, the open-source Xbox BIOS (github.com/kooscode/oxos,
+// GPL-2.0), unless the player picks the stock BIOS in xemu: Machine > BIOS.
+// xemu writes system\bios-choice.txt ("oxos" or "stock") and restarts through
+// this launcher. With no choice written yet it is OXOS, except in a copy moved
+// from Black Arrow Online that has its stock BIOS (system\update-source.txt):
+// Black Arrow freezes on OXOS, so those players keep what they had.
+// Each package names the OXOS version we tested in system\oxos.txt (tag, file,
+// zip, sha256). Here, before xemu starts:
+//   - OXOS chosen: the tested version comes with the package in system\bios\;
+//     if it is missing it is downloaded once from the OXOS release on GitHub
+//     (the .bin if it is published on its own, otherwise the release zip,
+//     from which only that .bin is taken), checked against the SHA-256 and
+//     kept in system\bios\. xemu then uses it with no MCPX.
 //     A new package with a newer oxos.txt is how the BIOS updates.
 //   - Stock chosen: the bundled BIOS and MCPX come back. A BIOS the player
 //     imported is never touched.
@@ -1030,8 +1047,15 @@ static class Bios
         try {
             return File.ReadAllText(Sys("bios-choice.txt")).Trim().ToLowerInvariant();
         } catch (IOException) {
-            return "stock";
+            bool moved = File.Exists(Sys("update-source.txt"));
+            return moved && Launcher.HasStockBios ? "stock" : "oxos";
         }
+    }
+
+    // Whether OXOS can be used: this package names a tested version
+    public static bool OxosAvailable
+    {
+        get { return Pin() != null; }
     }
 
     static Dictionary<string, string> Pin()
@@ -1127,6 +1151,11 @@ static class Bios
     static void UseStock()
     {
         if (!IsOxos(Launcher.TomlPath("flashrom_path"))) {
+            return;
+        }
+        if (!Launcher.HasStockBios && !File.Exists(Sys("bios-before.txt"))) {
+            // XBemu ships no stock BIOS: stay on OXOS
+            Log("bios: no stock BIOS in this folder, staying on OXOS");
             return;
         }
         string flash = Launcher.Bundled("bios"), mcpx = Launcher.Bundled("mcpx");
@@ -1281,7 +1310,7 @@ class UpdateForm : Form
     {
         update = info;
         preview = previewPath;
-        Text = "Black Arrow Online - Update";
+        Text = "XBemu - Update";
         AutoScaleDimensions = new SizeF(96F, 96F);
         AutoScaleMode = AutoScaleMode.Dpi;
         ClientSize = new Size(560, 322);
@@ -1376,7 +1405,7 @@ class UpdateForm : Form
                 "A file could not be replaced. Close xemu and try again.\n\n" + e.Error.Message :
                 e.Error.Message;
             MessageBox.Show(this, "The update was not installed.\n\n" + reason,
-                            "Black Arrow Online", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                            "XBemu", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         };
         worker.RunWorkerAsync();
     }
@@ -1397,7 +1426,7 @@ class InstallForm : Form
     {
         this.build = build;
         this.waitPid = waitPid;
-        Text = "Black Arrow Online - Install build " + UpdateInfo.CodeText(build);
+        Text = "XBemu - Install build " + UpdateInfo.CodeText(build);
         AutoScaleDimensions = new SizeF(96F, 96F);
         AutoScaleMode = AutoScaleMode.Dpi;
         ClientSize = new Size(520, 210);
@@ -1801,8 +1830,8 @@ class SetupForm : Form
     readonly System.Windows.Forms.Timer anim;
     readonly Label status, gamesLabel, cleanText, cleanTitle;
 
-    const string IdleStatus = "This window shows only once. Help > Black Arrow Online " +
-                              "Guide in xemu explains the rest.";
+    const string IdleStatus = "This window shows only once. Help > XBemu Guide " +
+                              "explains the rest.";
 
     const int W = 760;           // window width
     const int Side = 36;         // left and right margin
@@ -1812,7 +1841,7 @@ class SetupForm : Form
     public SetupForm(string previewPath)
     {
         preview = previewPath;
-        Text = "Black Arrow Online - First-time setup";
+        Text = "XBemu - First-time setup";
         AutoScaleDimensions = new SizeF(96F, 96F);
         AutoScaleMode = AutoScaleMode.Dpi;
         ClientSize = new Size(W, 712);
@@ -1832,7 +1861,7 @@ class SetupForm : Form
             logoShow.SetBounds((W - 400) / 2, 14, 400, 102);  // the picture is 4:1
             Controls.Add(logoShow);
         } else {
-            Label name = AddLabel(this, "Black Arrow Online", 0, 40, W, 50, 22F, true, TextColor);
+            Label name = AddLabel(this, "XBemu", 0, 40, W, 50, 22F, true, TextColor);
             name.TextAlign = ContentAlignment.MiddleCenter;
         }
         Label sub = AddLabel(this, "Let's set up your virtual Xbox", 0, 116, W, 24, 10.5F,
@@ -1868,10 +1897,9 @@ class SetupForm : Form
         AddStep(Side + 1 * col, 344, col - 16, "2", "Go online",
                 "In the dashboard: Settings > Network, set the top option to XB Online.");
         AddStep(Side + 2 * col, 344, col - 16, "3", "Add your game",
-                "Put your disc image in the games folder. The XBL Dashboard installs and updates it.");
+                "Put your disc images (.iso) in the games folder.");
         AddStep(Side + 3 * col, 344, col - 16, "4", "Play",
-                "Play > Play Rainbow Six 3 Black Arrow. From then on xemu opens " +
-                "straight to the dashboard.");
+                "Play > Load a game, then start it from the dashboard's Disc tile.");
 
         // --- good to know ---
         var know = AddCard(Side, 500, Inner, 100);
@@ -1947,7 +1975,7 @@ class SetupForm : Form
         if (Launcher.ContentMissing) {
             cleanText.ForeColor = Color.FromArgb(230, 180, 70);
             cleanText.Text = "Needs the content pack first: " + Launcher.ContentPackName + ".\n" +
-                             "Download it from where you got Black Arrow Online, then add it " +
+                             "Download it from where you got XBemu, then add it " +
                              "here. It is only needed once.";
             cleanButton.Text = "Add content pack";
         } else {
@@ -2020,7 +2048,7 @@ class SetupForm : Form
             cleanText.SetBounds(25, 56, 420, 56);
             ShowClean();
             if (e.Error != null) {
-                MessageBox.Show(this, e.Error.Message, "Black Arrow Online",
+                MessageBox.Show(this, e.Error.Message, "XBemu",
                                 MessageBoxButtons.OK, MessageBoxIcon.Warning);
             } else {
                 then();
@@ -2037,7 +2065,7 @@ class SetupForm : Form
             gamesLabel.Text = "Game found: " + game;
         } else {
             gamesLabel.ForeColor = Color.FromArgb(230, 180, 70);
-            gamesLabel.Text = "No game yet: copy your Black Arrow disc image (.iso) " +
+            gamesLabel.Text = "No game yet: copy your disc images (.iso) " +
                               "into the games folder.";
         }
     }

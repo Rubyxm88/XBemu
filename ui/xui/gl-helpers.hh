@@ -40,9 +40,9 @@ public:
 
 extern Fbo *controller_fbo, *xmu_fbo, *logo_fbo;
 extern GLuint g_icon_tex;
-// Black Arrow Online logo (data/bao_logo.png) and its size in pixels
-extern GLuint g_bao_logo_tex;
-extern int g_bao_logo_w, g_bao_logo_h;
+// XBemu logo (data/xbemu_logo.png) and its size in pixels
+extern GLuint g_xbemu_logo_tex;
+extern int g_xbemu_logo_w, g_xbemu_logo_h;
 
 void InitCustomRendering(void);
 void RenderLogo(uint32_t time);

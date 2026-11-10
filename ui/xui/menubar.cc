@@ -338,7 +338,7 @@ void DrawSoundRestartNotice()
             ImGui::BulletText("5.1 rear sound.");
         }
         if (!app.empty()) {
-            ImGui::BulletText("%s: read when Black Arrow Online opens.",
+            ImGui::BulletText("%s: read when XBemu opens.",
                               app.c_str());
         }
         ImGui::Spacing();
@@ -361,7 +361,7 @@ void DrawSoundRestartNotice()
             ImGui::SetTooltip(app.empty()
                                   ? "Restarts the game, not the app. In a "
                                     "match, you leave it."
-                                  : "Closes Black Arrow Online and opens it "
+                                  : "Closes XBemu and opens it "
                                     "again. In a match, you leave it.");
         }
         ImGui::SameLine();
@@ -484,9 +484,10 @@ static void OverlayMenu()
 
 // Machine: the console itself (pause, snapshots, settings, power)
 #if defined(_WIN32)
-// Machine > BIOS: the stock BIOS or OXOS (beta), the open-source Xbox BIOS.
-// The launcher reads system/bios-choice.txt when it starts xemu: it fetches
-// the OXOS version the package names (system/oxos.txt) and sets the BIOS.
+// Machine > BIOS: OXOS, the open-source Xbox BIOS XBemu runs by default, or
+// a stock BIOS the player added. The launcher reads system/bios-choice.txt
+// when it starts xemu, uses the OXOS version the package names
+// (system/oxos.txt) and sets the BIOS.
 static std::string BiosFile(const char *name)
 {
     gchar *p = g_build_filename(xemu_settings_get_base_path(), name, NULL);
@@ -495,10 +496,28 @@ static std::string BiosFile(const char *name)
     return r;
 }
 
+static bool UsingOxos()
+{
+    const char *flash = g_config.sys.files.flashrom_path;
+    return flash && (g_str_has_prefix(flash, "bios\\oxos-") ||
+                     g_str_has_prefix(flash, "bios/oxos-"));
+}
+
+// The launcher's stock files: the ones a copy moved from Black Arrow Online
+// has, or the player's own
+static bool StockBiosPresent()
+{
+    return g_file_test(BiosFile("Complex_4627v1.03.bin").c_str(),
+                       G_FILE_TEST_EXISTS) &&
+           g_file_test(BiosFile("mcpx.bin").c_str(), G_FILE_TEST_EXISTS);
+}
+
 static std::string ReadBiosChoice()
 {
     gchar *text = NULL;
-    std::string r = "stock";
+    // No choice made yet: what the launcher set up (OXOS, or the stock BIOS
+    // of a moved copy)
+    std::string r = UsingOxos() ? "oxos" : "stock";
     if (g_file_get_contents(BiosFile("bios-choice.txt").c_str(), &text, NULL,
                             NULL)) {
         gchar *lower = g_ascii_strdown(text, -1);
@@ -528,13 +547,6 @@ static std::string OxosTag()
     return tag;
 }
 
-static bool UsingOxos()
-{
-    const char *flash = g_config.sys.files.flashrom_path;
-    return flash && (g_str_has_prefix(flash, "bios\\oxos-") ||
-                     g_str_has_prefix(flash, "bios/oxos-"));
-}
-
 static void BiosMenu()
 {
     static std::string choice, tag, error;
@@ -550,19 +562,23 @@ static void BiosMenu()
     if (!ImGui::BeginMenu("BIOS")) {
         return;
     }
-    std::string oxos = "OXOS " + tag + " (beta)";
+    std::string oxos = "OXOS " + tag;
     const char *pick = NULL;
-    if (ImGui::MenuItem("Stock BIOS", NULL, choice == "stock")) {
-        pick = "stock";
-    }
-    MenuItemHelp("The Xbox BIOS that comes with Black Arrow Online.");
     if (ImGui::MenuItem(oxos.c_str(), NULL, choice == "oxos")) {
         pick = "oxos";
     }
-    MenuItemHelp("OXOS, an open-source Xbox BIOS (github.com/kooscode/oxos), "
-                 "in testing. Downloaded from its GitHub release when "
-                 "Black Arrow Online starts. Disc games that start a game "
-                 "update saved on the console can freeze on it.");
+    MenuItemHelp("OXOS, the open-source Xbox BIOS (github.com/kooscode/oxos). "
+                 "It comes with XBemu. Some disc games freeze on it.");
+    bool have_stock = StockBiosPresent();
+    if (ImGui::MenuItem("Stock BIOS", NULL, choice == "stock",
+                        have_stock || choice == "stock")) {
+        pick = "stock";
+    }
+    MenuItemHelp(have_stock ?
+                 "Your own Xbox BIOS and MCPX boot ROM, in the system folder." :
+                 "Needs your own Xbox BIOS (Complex_4627v1.03.bin) and MCPX "
+                 "boot ROM (mcpx.bin) in the system folder. XBemu does not "
+                 "include them.");
     if (pick && choice != pick) {
         GError *err = NULL;
         if (g_file_set_contents(BiosFile("bios-choice.txt").c_str(), pick, -1,
@@ -583,7 +599,7 @@ static void BiosMenu()
                 ActionShutdown();
             }
         }
-        MenuItemHelp("Closes and opens Black Arrow Online again with the "
+        MenuItemHelp("Closes and opens XBemu again with the "
                      "chosen BIOS.");
     }
     if (!error.empty()) {
@@ -993,7 +1009,7 @@ static void GraphicsMenu()
     }
     if (opengl_running !=
         (g_config.display.renderer == CONFIG_DISPLAY_RENDERER_OPENGL)) {
-        ImGui::TextDisabled("  Restart Black Arrow Online to switch renderer");
+        ImGui::TextDisabled("  Restart XBemu to switch renderer");
     }
 }
 
@@ -1080,7 +1096,7 @@ static void TroubleshootMenu()
 
 static void HelpMenu()
 {
-    if (ImGui::MenuItem("Black Arrow Online Guide...")) {
+    if (ImGui::MenuItem("XBemu Guide...")) {
         guide_window.Open();
     }
     if (ImGui::MenuItem("Versions & Updates...")) {

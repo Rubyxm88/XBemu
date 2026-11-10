@@ -473,7 +473,7 @@ void xemu_hud_update(void)
 void xemu_hud_render()
 {
     /*
-     * Started by the Black Arrow Online launcher, the window opens behind
+     * Started by the XBemu launcher, the window opens behind
      * other windows. Once it is on screen, force it to the front, once.
      */
     if (hud_frames == 0 && hud_window) {

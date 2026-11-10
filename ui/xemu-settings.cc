@@ -37,6 +37,7 @@
 
 #define DEFINE_CONFIG_TREE
 #include "xemu-config.h"
+#include "xbemu-brand.h"
 
 struct config g_config;
 
@@ -89,18 +90,28 @@ const char *xemu_settings_get_base_path(void)
         }
     } else {
 #if defined(__APPLE__) || defined(__linux__)
-        // Black Arrow Online keeps the console and its files in the same
-        // layout as the Windows package folder, outside the app bundle,
-        // which must stay unchanged (on Linux: next to the app folder in
-        // ~/.local/share, where setup.sh installs it)
+        // XBemu keeps the console and its files in the same layout as the
+        // Windows package folder, outside the app bundle, which must stay
+        // unchanged (on Linux: next to the app folder in ~/.local/share,
+        // where setup.sh installs it). A copy moved from Black Arrow Online
+        // keeps using that folder, so its console and games stay.
 #ifdef __APPLE__
-        char *system_dir =
-            g_build_filename(g_get_home_dir(), "Library", "Application Support",
-                             "Black Arrow Online", "system", NULL);
+        char *data_root = g_build_filename(g_get_home_dir(), "Library",
+                                           "Application Support", NULL);
 #else
-        char *system_dir = g_build_filename(
-            g_get_user_data_dir(), "Black Arrow Online", "system", NULL);
+        char *data_root = g_strdup(g_get_user_data_dir());
 #endif
+        char *old_system =
+            g_build_filename(data_root, XBEMU_OLD_NAME, "system", NULL);
+        char *system_dir;
+        if (g_file_test(old_system, G_FILE_TEST_IS_DIR)) {
+            system_dir = old_system;
+        } else {
+            g_free(old_system);
+            system_dir =
+                g_build_filename(data_root, XBEMU_NAME, "system", NULL);
+        }
+        g_free(data_root);
         g_mkdir_with_parents(system_dir, 0755);
         base_path = g_strdup_printf("%s/", system_dir);
         g_free(system_dir);

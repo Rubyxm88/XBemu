@@ -63,7 +63,7 @@ private:
 
 extern VersionsWindow versions_window;
 
-// The installed build, "BA Online - Build N", at the right of the menu bar,
+// The installed build, "XBemu - Build N", at the right of the menu bar,
 // with a dot when a newer build is out. Clicking it opens the Versions
 // window.
 void DrawBuildBadge();
@@ -74,11 +74,11 @@ bool BetaChannel();
 // "Build 27", a beta's own name, or "Test Build"
 std::string InstalledBuildText();
 
-// The window title: "Black Arrow Online | Build 27 | xemu 0.8.139"
+// The window title: "XBemu | Build 27 | xemu 0.8.139"
 std::string WindowTitleText();
 
 #if defined(_WIN32)
-// Starts "Black Arrow Online.exe" (next to system/) with these arguments and
+// Starts "XBemu.exe" (next to system/) with these arguments and
 // --wait-pid <this process>, so it carries on once xemu closed. False, with
 // the reason, when it could not.
 bool StartLauncherAfterExit(const char *args, std::string *error);

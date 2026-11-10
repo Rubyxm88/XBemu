@@ -1,5 +1,5 @@
 #!/bin/bash
-# Installs or updates Black Arrow Online on a Mac.
+# Installs or updates XBemu on a Mac.
 #
 #   bash setup.sh                   install or update from this folder
 #   bash setup.sh <content zip>     also install a content pack zip
@@ -13,7 +13,7 @@
 # that for the app it installs.
 #
 # The app goes to Applications. The console and its files go to
-# ~/Library/Application Support/Black Arrow Online, laid out like the Windows
+# ~/Library/Application Support/XBemu, laid out like the Windows
 # package folder (system/ and games/). They are kept on every update.
 #
 # macOS 10.x ships bash 3.2, so this keeps to what it supports.
@@ -21,10 +21,14 @@
 set -euo pipefail
 
 here="$(cd "$(dirname "$0")" && pwd)"
-data="$HOME/Library/Application Support/Black Arrow Online"
+data="$HOME/Library/Application Support/XBemu"
+# A copy moved from Black Arrow Online keeps its folder (xemu uses it too)
+if [ -d "$HOME/Library/Application Support/Black Arrow Online/system" ]; then
+    data="$HOME/Library/Application Support/Black Arrow Online"
+fi
 system="$data/system"
 games="$data/games"
-name="Black Arrow Online.app"
+name="XBemu.app"
 NL=$'\n'
 
 # Applications when this account may write there (admin accounts can),
@@ -71,6 +75,14 @@ is_kept() {
     return 1
 }
 
+# OXOS, the open-source BIOS XBemu runs: the version this package names in
+# system/oxos.txt, which comes with the package in system/bios/
+oxos_bios() {
+    local tag
+    tag="$({ grep -m 1 '^tag=' "$system/oxos.txt" 2>/dev/null || true; } | cut -d= -f2- | tr -d '\r')"
+    printf 'bios/oxos-%s.bin' "${tag:-v0.4.4}"
+}
+
 default_settings() {
     cat <<'EOF'
 [general]
@@ -98,14 +110,13 @@ forward_ports = [
 mem_limit = '128'
 
 [sys.files]
-bootrom_path = 'mcpx.bin'
-flashrom_path = 'Complex_4627v1.03.bin'
 eeprom_path = 'eeprom.bin'
 hdd_path = 'xbox_hdd.qcow2'
 EOF
+    printf "flashrom_path = '%s'\n" "$(oxos_bios)"
 }
 
-# "Black Arrow Report" next to the app in Applications: double-clicked, it
+# "XBemu Report" next to the app in Applications: double-clicked, it
 # puts what is needed to look into a problem in one zip in Downloads. While
 # the app is running (or hanging) it also records what each part of the app
 # is doing. Downloads, not the Desktop: Terminal already may use Downloads
@@ -113,23 +124,27 @@ EOF
 report_tool() {
     cat <<'REPORT'
 #!/bin/bash
-# Black Arrow Online report. Double-click it, best while the problem is
+# XBemu report. Double-click it, best while the problem is
 # happening (with the game still open): it makes a zip in Downloads to send
 # to whoever shared the package.
-data="$HOME/Library/Application Support/Black Arrow Online"
-name="Black Arrow Online.app"
+data="$HOME/Library/Application Support/XBemu"
+# A copy moved from Black Arrow Online keeps its folder (xemu uses it too)
+if [ -d "$HOME/Library/Application Support/Black Arrow Online/system" ]; then
+    data="$HOME/Library/Application Support/Black Arrow Online"
+fi
+name="XBemu.app"
 stamp="$(date +%Y-%m-%d_%H%M%S)"
-out="$HOME/Downloads/BlackArrow-report-$stamp"
+out="$HOME/Downloads/XBemu-report-$stamp"
 mkdir -p "$out" || exit 1
-echo "Making a Black Arrow Online report. This takes about 15 seconds..."
+echo "Making a XBemu report. This takes about 15 seconds..."
 
 pid="$(pgrep -f "$name/Contents/MacOS/" | head -n 1)"
 if [ -n "$pid" ]; then
-    echo "Black Arrow Online is open: recording what it is doing (10 seconds)..."
+    echo "XBemu is open: recording what it is doing (10 seconds)..."
     /usr/bin/sample "$pid" 10 -file "$out/sample.txt" >/dev/null 2>&1 ||
         echo "Could not record it." > "$out/sample.txt"
 else
-    echo "Black Arrow Online was not open." > "$out/not-open.txt"
+    echo "XBemu was not open." > "$out/not-open.txt"
 fi
 
 {
@@ -156,26 +171,26 @@ fi
 # macOS's own crash and hang reports for the app from the last week
 mkdir -p "$out/crash-reports"
 find "$HOME/Library/Logs/DiagnosticReports" -maxdepth 1 -type f \
-    \( -iname 'xemu*' -o -iname 'Black Arrow*' \) -mtime -7 \
+    \( -iname 'xemu*' -o -iname 'XBemu*' \) -mtime -7 \
     -exec cp {} "$out/crash-reports/" \; 2>/dev/null
 rmdir "$out/crash-reports" 2>/dev/null
 
 ditto -c -k --keepParent "$out" "$out.zip" && rm -rf "$out"
 echo
-echo "Done: BlackArrow-report-$stamp.zip is in your Downloads folder."
+echo "Done: XBemu-report-$stamp.zip is in your Downloads folder."
 echo "Send it to whoever shared the package. You can close this window."
 open -R "$out.zip"
 REPORT
 }
 
 install_report_tool() {
-    local tool="$1/Black Arrow Report.command"
+    local tool="$1/XBemu Report.command"
     if report_tool > "$tool" 2>/dev/null; then
         chmod 755 "$tool"
         xattr -d com.apple.quarantine "$tool" 2>/dev/null || true
     else
         rm -f "$tool"
-        echo "Could not add \"Black Arrow Report\" to $1 (skipped)."
+        echo "Could not add \"XBemu Report\" to $1 (skipped)."
     fi
 }
 
@@ -215,7 +230,7 @@ install_zip_content() {
         fail "$pack is not a zip, or it did not download completely."
     case "$NL$entries$NL" in
         *"${NL}system/content.txt${NL}"*) ;;
-        *) fail "$pack is not a Black Arrow Online content pack." ;;
+        *) fail "$pack is not a XBemu content pack." ;;
     esac
     echo "Installing the content pack (this takes a minute)..."
     unzip -q -o "$pack" 'system/*' -x 'system/xemu.toml' 'system/eeprom.bin' \
@@ -224,9 +239,9 @@ install_zip_content() {
 }
 
 if [ "${1:-}" = "--start-over" ]; then
-    running && fail "quit Black Arrow Online first."
+    running && fail "quit XBemu first."
     new_console
-    echo "Done. Start Black Arrow Online from Applications."
+    echo "Done. Start XBemu from Applications."
     exit 0
 fi
 
@@ -245,13 +260,13 @@ if [ -n "$update_pid" ]; then
     waited=0
     while kill -0 "$update_pid" 2>/dev/null; do
         if [ "$waited" -eq 120 ]; then
-            echo "Black Arrow Online did not close in a minute, quitting it."
+            echo "XBemu did not close in a minute, quitting it."
             kill -TERM "$update_pid" 2>/dev/null || true
         elif [ "$waited" -eq 140 ]; then
             echo "Still open, closing it."
             kill -KILL "$update_pid" 2>/dev/null || true
         elif [ "$waited" -ge 160 ]; then
-            fail "Black Arrow Online did not close."
+            fail "XBemu did not close."
         fi
         sleep 0.5
         waited=$((waited + 1))
@@ -260,7 +275,7 @@ fi
 
 [ -d "$here/$name" ] ||
     fail "\"$name\" is not next to setup.sh. Unzip the whole download first."
-running && fail "quit Black Arrow Online first."
+running && fail "quit XBemu first."
 
 mkdir -p "$system" "$games"
 if [ -n "${1:-}" ]; then
@@ -269,7 +284,7 @@ elif [ -f "$here/system/content.txt" ]; then
     install_folder_content
 elif [ ! -f "$system/content.txt" ]; then
     fail "this download is only the app, and the Xbox files are not installed yet.
-Get the full Mac package from where Black Arrow Online is shared, unzip it and
+Get the full Mac package from where XBemu is shared, unzip it and
 run its setup.sh instead."
 fi
 
@@ -309,7 +324,7 @@ if [ ! -f "$system/xbox_hdd.qcow2" ]; then
 fi
 install_report_tool "$(dirname "$app")"
 # Only in the Applications folder the app is in, like the app
-other_tool="$(dirname "$other")/Black Arrow Report.command"
+other_tool="$(dirname "$other")/XBemu Report.command"
 if [ -f "$other_tool" ] && [ -w "$(dirname "$other")" ]; then
     rm -f "$other_tool"
 fi
@@ -326,7 +341,7 @@ if [ -n "$update_pid" ]; then
     trap - ERR
     open "$app" || echo "Could not open $app"
     case "$(dirname "$here")" in
-        */BlackArrowOnline-update-*) rm -rf "$(dirname "$here")" ;;
+        */XBemu-update-*) rm -rf "$(dirname "$here")" ;;
     esac
     exit 0
 fi
@@ -334,13 +349,13 @@ fi
 echo
 echo "Done."
 echo "If something goes wrong, open Applications and double-click"
-echo "\"Black Arrow Report\" (with the game still open if it is stuck). Send"
-echo "the BlackArrow-report zip it puts in Downloads."
+echo "\"XBemu Report\" (with the game still open if it is stuck). Send"
+echo "the XBemu-report zip it puts in Downloads."
 if $first_time; then
-    echo "Put your Rainbow Six 3: Black Arrow disc image (.iso) in the games"
-    echo "folder, which opens now, then start Black Arrow Online from Applications."
+    echo "Put your game disc images (.iso) in the games"
+    echo "folder, which opens now, then start XBemu from Applications."
     open "$games"
 else
-    echo "Your console and games are as you left them. Start Black Arrow Online"
+    echo "Your console and games are as you left them. Start XBemu"
     echo "from Applications."
 fi

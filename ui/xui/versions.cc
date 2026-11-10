@@ -18,7 +18,7 @@
 // Installing closes xemu, since its files cannot be replaced while it runs.
 // On Windows the launcher next to the system folder does the work
 // (--install-build N --wait-pid P: it waits for xemu to close, downloads the
-// build's BlackArrowOnline-update.zip, checks it against the SHA-256 in that
+// build's XBemu-update.zip, checks it against the SHA-256 in that
 // build's version.txt, installs it and starts it). On a Mac and on Linux the
 // app's own updater downloads the build's update and runs its setup.sh.
 //
@@ -60,23 +60,23 @@ extern "C" {
 
 using json = nlohmann::json;
 
-#define RELEASES_PAGE "https://github.com/Rubyxm88/Black-Arrow-Online/releases"
+#define RELEASES_PAGE "https://github.com/Rubyxm88/XBemu/releases"
 #define RELEASES_API \
-    "https://api.github.com/repos/Rubyxm88/Black-Arrow-Online/releases" \
+    "https://api.github.com/repos/Rubyxm88/XBemu/releases" \
     "?per_page=100"
 
 #if defined(__APPLE__)
-#define PLATFORM_ASSET "BlackArrowOnline-mac-update.zip"
+#define PLATFORM_ASSET "XBemu-mac-update.zip"
 #define PLATFORM_SYSTEM "mac"
 #elif defined(__linux__)
-#define PLATFORM_ASSET "BlackArrowOnline-linux-update.tar.gz"
+#define PLATFORM_ASSET "XBemu-linux-update.tar.gz"
 #define PLATFORM_SYSTEM "linux"
 #else
-#define PLATFORM_ASSET "BlackArrowOnline-update.zip"
+#define PLATFORM_ASSET "XBemu-update.zip"
 #define PLATFORM_SYSTEM "windows"
 #endif
 
-#define LAUNCHER_NAME "Black Arrow Online.exe"
+#define LAUNCHER_NAME "XBemu.exe"
 
 /* The first build with this window; going back further loses it */
 #define FIRST_BUILD_WITH_VERSIONS 15
@@ -390,7 +390,7 @@ gpointer VersionsWindow::LoadThread(gpointer opaque)
             for (const json &r : releases) {
                 std::string tag = r.value("tag_name", "");
                 // Drafts are not out yet
-                if (r.value("draft", false) || tag.rfind("build-", 0) != 0) {
+                if (r.value("draft", false) || tag.rfind("xbemu-", 0) != 0) {
                     continue;
                 }
                 int build = BuildFromText(tag.substr(6));
@@ -562,7 +562,7 @@ static void ParseNotes(const std::string &body, ReleaseBuild &b)
             continue;
         }
         if (b.notes.empty() && !bullet && line[0] != '|' && line[0] != '<') {
-            b.notes = text;  // "Build N of Black Arrow Online, based on..."
+            b.notes = text;  // "Build N of XBemu, based on..."
         }
         if (in_notes && line[0] != '|' && line[0] != '<') {
             b.changes.push_back(bullet ? text : "  " + text);
@@ -585,7 +585,7 @@ bool StartLauncherAfterExit(const char *args, std::string *error)
     g_free(base);
     if (!g_file_test(launcher, G_FILE_TEST_IS_REGULAR)) {
         *error = "The launcher (" LAUNCHER_NAME ") is not next to the system "
-                 "folder. Start Black Arrow Online from it.";
+                 "folder. Start XBemu from it.";
         g_free(launcher);
         g_free(root);
         return false;
@@ -703,7 +703,7 @@ void VersionsWindow::DrawConfirm()
     }
     ImGui::PopFont();
     ImGui::Spacing();
-    ImGui::TextWrapped("Black Arrow Online closes, installs build %s and "
+    ImGui::TextWrapped("XBemu closes, installs build %s and "
                        "opens again by itself. Your console, Xbox Live "
                        "sign-in, saves, settings and games are kept.",
                        BuildText(build).c_str());
@@ -1021,7 +1021,7 @@ std::string XemuUpstreamVersion()
 
 std::string WindowTitleText()
 {
-    return "Black Arrow Online  |  " + InstalledBuildText() + "  |  xemu " +
+    return "XBemu  |  " + InstalledBuildText() + "  |  xemu " +
            XemuUpstreamVersion();
 }
 
@@ -1039,9 +1039,9 @@ void DrawBuildBadge()
     // The menu bar fades out when the mouse rests; fade with it
     float fade = ImGui::GetStyleColorVec4(ImGuiCol_Text).w;
 
-    // "BA Online" light, " - " dim, "Build N" green
-    std::string text = std::string("BA Online - ") + InstalledBuildText();
-    size_t dim_from = strlen("BA Online"), green_from = strlen("BA Online - ");
+    // "XBemu" light, " - " dim, "Build N" green
+    std::string text = std::string("XBemu - ") + InstalledBuildText();
+    size_t dim_from = strlen("XBemu"), green_from = strlen("XBemu - ");
     const ImVec4 name_color(0.86f, 0.88f, 0.86f, 1.0f);
     const ImVec4 dash_color(0.50f, 0.53f, 0.50f, 1.0f);
     const ImVec4 build_color(0.36f, 0.82f, 0.38f, 1.0f);
@@ -1129,12 +1129,12 @@ void DrawBuildBadge()
     if (hovered) {
         ImGui::BeginTooltip();
         if (!local.label.empty()) {
-            ImGui::Text("Black Arrow Online %s", local.label.c_str());
+            ImGui::Text("XBemu %s", local.label.c_str());
         } else if (local.build > 0) {
-            ImGui::Text("Black Arrow Online build %s",
+            ImGui::Text("XBemu build %s",
                         BuildText(local.build).c_str());
         } else {
-            ImGui::Text("Black Arrow Online test build");
+            ImGui::Text("XBemu test build");
         }
         if (!local.xemu.empty()) {
             ImGui::TextDisabled("xemu %s", local.xemu.c_str());

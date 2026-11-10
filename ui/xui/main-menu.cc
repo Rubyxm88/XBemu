@@ -56,7 +56,7 @@ void MainMenuTabView::Draw()
 
 void MainMenuGeneralView::Draw()
 {
-    // Updates come from the Black Arrow Online releases page (Help >
+    // Updates come from the XBemu releases page (Help >
     // Versions & Updates), not from xemu's own
 
 #if defined(__x86_64__)
@@ -1681,7 +1681,7 @@ void MainMenuExperimentalView::Draw()
     if (!waiting.empty()) {
         ImGui::Spacing();
         ImGui::PushTextWrapPos(0.0f);
-        ImGui::TextDisabled("%s: used after Black Arrow Online opens "
+        ImGui::TextDisabled("%s: used after XBemu opens "
                             "again.", waiting.c_str());
         ImGui::PopTextWrapPos();
         if (ImGui::Button("Restart to Apply")) {
@@ -1745,7 +1745,7 @@ static float Hash(int i, float salt)
 // lights run out along the ONLINE lines. Click it to play it again.
 static void BaoAboutLogo()
 {
-    if (!g_bao_logo_tex || g_bao_logo_w <= 0) {
+    if (!g_xbemu_logo_tex || g_xbemu_logo_w <= 0) {
         Logo();
         return;
     }
@@ -1758,18 +1758,18 @@ static void BaoAboutLogo()
 
     float avail = ImGui::GetContentRegionAvail().x;
     float lw = std::min(avail, 460.0f * scale);
-    float lh = lw * g_bao_logo_h / g_bao_logo_w;
+    float lh = lw * g_xbemu_logo_h / g_xbemu_logo_w;
     ImGui::Dummy(ImVec2(0, 26.0f * scale));  // room for the sparks
     ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (avail - lw) / 2);
     ImVec2 p = ImGui::GetCursorScreenPos();
-    ImGui::InvisibleButton("##bao_logo", ImVec2(lw, lh));
+    ImGui::InvisibleButton("##xbemu_logo", ImVec2(lw, lh));
     if (ImGui::IsItemClicked()) {
         t0 = now;
     }
 
     float t = (float)(now - t0);
     ImDrawList *dl = ImGui::GetWindowDrawList();
-    ImTextureID tex = (ImTextureID)(intptr_t)g_bao_logo_tex;
+    ImTextureID tex = (ImTextureID)(intptr_t)g_xbemu_logo_tex;
     const float reveal_time = 1.1f;
     float r = std::min(t / reveal_time, 1.0f);
     r = 1.0f - powf(1.0f - r, 3.0f);  // ease out
@@ -1925,7 +1925,7 @@ void MainMenuAboutView::Draw()
 
     SectionTitle("Community");
 
-    ImGui::TextWrapped("Black Arrow Online runs on xemu, the original Xbox "
+    ImGui::TextWrapped("XBemu runs on xemu, the original Xbox "
                        "emulator.");
     ImGui::Text("More about xemu:");
     ImGui::SameLine();

@@ -1,4 +1,4 @@
-name: Black Arrow Online release
+name: XBemu release
 
 # Builds xemu.exe and the launcher, and the Mac app, and publishes them as a
 # release that the launcher and the Mac app offer to players as an update.
@@ -19,9 +19,9 @@ name: Black Arrow Online release
 # Linux apps take longer; their files are added to the same release when
 # each is done, and a failed Mac or Linux build leaves the release without
 # it. The systems' files never share a name: launchers read version.txt and
-# BlackArrowOnline-update.zip, the Mac app mac-version.txt and
-# BlackArrowOnline-mac-update.zip, the Linux app linux-version.txt and
-# BlackArrowOnline-linux-update.tar.gz.
+# XBemu-update.zip, the Mac app mac-version.txt and
+# XBemu-mac-update.zip, the Linux app linux-version.txt and
+# XBemu-linux-update.tar.gz.
 #
 # A push to mac-build or linux-build runs everything without publishing: the
 # would-be release files are kept as downloads on the run's page (Artifacts).
@@ -30,7 +30,7 @@ name: Black Arrow Online release
 # "mac linux", "windows"...) makes a sub build of the newest release, such as
 # 26.1 after 26, that builds only those systems. Its version files say
 # build=26 and sub=1 (launchers and apps before 26 read build=26 only), its
-# tag is build-26.1, and it is marked latest, so it carries every system's
+# tag is xbemu-1.1, and it is marked latest, so it carries every system's
 # files: the systems it leaves out get the newest release's files, copied
 # unchanged, and see nothing new. Its notes say which systems it is for in a
 # "<!-- systems: mac -->" line, which the Versions window reads. The next push
@@ -39,7 +39,7 @@ name: Black Arrow Online release
 # Betas: a head commit with a line "Release-Channel: beta" makes a beta of the
 # newest release, such as 27.3.1 after 27.3 (then 27.3.2...), for players who
 # ticked "Get beta builds" in Versions & Updates. Its version files add
-# beta=1, its tag is build-27.3.1, and it is published as a pre-release that
+# beta=1, its tag is xbemu-1.0.1, and it is published as a pre-release that
 # is never marked latest, so everyone else, and every launcher and app before
 # 27.3, sees nothing new. "Release-Sub:" in the same commit makes it a beta for
 # those systems only. The next push without the line makes the next sub or
@@ -51,7 +51,7 @@ on:
     paths-ignore:
       - '**.md'
       - '.github/**'
-      - 'black-arrow-online/docs/**'
+      - 'xbemu/docs/**'
   schedule:
     - cron: '23 9 * * *'
   workflow_dispatch:
@@ -70,7 +70,7 @@ permissions:
   issues: write
 
 concurrency:
-  group: black-arrow-online-release-${{ github.ref }}
+  group: xbemu-release-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -149,7 +149,7 @@ jobs:
                 echo "**Shader state changed** (shaders.h, vsh.h or psh.h): check that shader-list.bin still loads (\"does not match this emulator\" in xemu.log means precache is off)."
                 echo
               fi
-              echo "### Files both xemu and Black Arrow Online changed"
+              echo "### Files both xemu and XBemu changed"
               echo
               echo '```'
               comm -12 <(echo "$theirs" | sort) <(echo "$ours" | sort) || true
@@ -242,7 +242,7 @@ jobs:
           exit 0
         fi
         echo "draft=false" >> "$GITHUB_OUTPUT"
-        # The newest release; its tag numbers this one (build-26, build-26.1)
+        # The newest release; its tag numbers this one (xbemu-1, xbemu-1.1)
         prev_tag=$(gh release view --json tagName --jq .tagName 2>/dev/null || true)
         gh release download ${prev_tag:+"$prev_tag"} --pattern version.txt --dir prev 2>/dev/null || true
         field() {
@@ -255,8 +255,8 @@ jobs:
         # A sub build's version.txt may be the build before it, copied: its
         # number and commit come from the tag
         case "$prev_tag" in
-          build-*.*)
-            prev_build=${prev_tag#build-}
+          xbemu-*.*)
+            prev_build=${prev_tag#xbemu-}
             prev_sub=${prev_build#*.}
             prev_build=${prev_build%%.*}
             prev_commit=$(git rev-list -n 1 "$prev_tag" 2>/dev/null || echo "$prev_commit")
@@ -345,7 +345,7 @@ jobs:
           build=$prev_build
           sub=$prev_sub
           last=$(gh release list --limit 200 --json tagName --jq '.[].tagName' 2>/dev/null |
-                 sed -n "s/^build-$build\.$sub\.\([0-9][0-9]*\)\$/\1/p" | sort -n | tail -n 1)
+                 sed -n "s/^xbemu-$build\.$sub\.\([0-9][0-9]*\)\$/\1/p" | sort -n | tail -n 1)
           beta=$(( ${last:-0} + 1 ))
           if [ "$beta" -gt 99 ]; then
             echo "::error title=Too many betas::$build.$sub has 99 betas already"
@@ -371,7 +371,7 @@ jobs:
           echo "beta=$beta"
           echo "label=$label"
           echo "systems=$systems"
-          echo "tag=build-$label"
+          echo "tag=xbemu-$label"
         } >> "$GITHUB_OUTPUT"
         # Only main publishes; other branches are test runs
         if [ "$GITHUB_REF" = refs/heads/main ]; then
@@ -442,8 +442,8 @@ jobs:
         path: |
           ${{ env.CCACHE_DIR }}
           ${{ env.LTO_CACHE_DIR }}
-        key: cache-bao-wincross-${{ github.sha }}-${{ github.run_id }}
-        restore-keys: cache-bao-wincross-
+        key: cache-xbemu-wincross-${{ github.sha }}-${{ github.run_id }}
+        restore-keys: cache-xbemu-wincross-
     - name: Compile
       run: |
         mkdir -p "${CCACHE_DIR}" "${LTO_CACHE_DIR}"
@@ -484,7 +484,7 @@ jobs:
       with:
         ref: ${{ needs.prepare.outputs.commit }}
         sparse-checkout: |
-          black-arrow-online
+          xbemu
           ui/icons
           data
     - name: Download xemu.exe
@@ -508,11 +508,11 @@ jobs:
       shell: pwsh
       run: |
         & "$env:WINDIR\Microsoft.NET\Framework64\v4.0.30319\csc.exe" /nologo /target:winexe /optimize+ `
-            "/win32icon:ui\icons\black-arrow-online.ico" "/resource:data\bao_logo.png,bao_logo.png" `
-            "/out:pkg\Black Arrow Online.exe" `
+            "/win32icon:ui\icons\xbemu.ico" "/resource:data\xbemu_logo.png,xbemu_logo.png" `
+            "/out:pkg\XBemu.exe" `
             /r:System.Windows.Forms.dll /r:System.Drawing.dll `
             /r:System.IO.Compression.dll /r:System.IO.Compression.FileSystem.dll `
-            black-arrow-online\package\Launcher.cs
+            xbemu\package\Launcher.cs
         if ($LASTEXITCODE) { exit 1 }
     - name: Package
       if: contains(needs.prepare.outputs.systems, 'windows')
@@ -520,16 +520,24 @@ jobs:
       run: |
         set -euo pipefail
         trap 'echo "::error::line $LINENO: $BASH_COMMAND"' ERR
-        cp black-arrow-online/package/README.txt pkg/README.txt
-        cp "black-arrow-online/package/Start over.bat" "pkg/system/Start over.bat"
-        cp black-arrow-online/package/Launcher.cs pkg/system/Launcher-source.cs
-        cp black-arrow-online/package/shader-list.bin pkg/system/shader-list.bin
-        # The OXOS BIOS version this build was tested with (Machine > BIOS);
-        # the launcher downloads it from the OXOS release, not from us
-        cp black-arrow-online/package/oxos.txt pkg/system/oxos.txt
+        cp xbemu/package/README.txt pkg/README.txt
+        cp "xbemu/package/Start over.bat" "pkg/system/Start over.bat"
+        cp xbemu/package/Launcher.cs pkg/system/Launcher-source.cs
+        cp xbemu/package/shader-list.bin pkg/system/shader-list.bin
+        # OXOS, the open-source BIOS XBemu runs by default (GPL-2.0, source:
+        # the "source" line of oxos.txt): the version this build was tested
+        # with, taken from its release and checked against oxos.txt
+        cp xbemu/package/oxos.txt pkg/system/oxos.txt
+        oxos() { sed -n "s/^$1=//p" xbemu/package/oxos.txt | tr -d '\r'; }
+        curl -fsSL -o oxos.zip \
+            "https://github.com/kooscode/oxos/releases/download/$(oxos tag)/$(oxos zip)"
+        mkdir -p pkg/system/bios
+        7z e -so oxos.zip "$(oxos file)" > "pkg/system/bios/oxos-$(oxos tag).bin"
+        echo "$(oxos sha256)  pkg/system/bios/oxos-$(oxos tag).bin" | sha256sum -c -
+        rm oxos.zip
         # XBL Dashboard installer: its creator's own work, shipped with their
         # permission. xemu runs it once to make XBL Dashboard the dashboard.
-        cp "black-arrow-online/package/XBL Dashboard Installer.iso" \
+        cp "xbemu/package/XBL Dashboard Installer.iso" \
             "pkg/system/XBL Dashboard Installer.iso"
         notes=$(cat meta/notes.txt 2>/dev/null || true)
         printf 'build=%s\nxemu=%s\nversion=%s\ndate=%s\ncommit=%s\nupstream=%s\nnotes=%s\n' \
@@ -543,10 +551,10 @@ jobs:
         fi
         # Every line of "What changed", which the app shows after an update
         { sed -n 's/^- /change=/p' meta/changes.md 2>/dev/null || true; } >> pkg/system/version.txt
-        (cd pkg && 7z a -tzip -bso0 ../BlackArrowOnline-update.zip .)
+        (cd pkg && 7z a -tzip -bso0 ../XBemu-update.zip .)
         cp pkg/system/version.txt version.txt
-        echo "sha256=$(sha256sum BlackArrowOnline-update.zip | cut -d' ' -f1)" >> version.txt
-        mv src/*.tar.zst "BlackArrowOnline-source-$TAG.tar.zst"
+        echo "sha256=$(sha256sum XBemu-update.zip | cut -d' ' -f1)" >> version.txt
+        mv src/*.tar.zst "XBemu-source-$TAG.tar.zst"
         cat version.txt
     # A sub build without Windows: the newest release's Windows files, so
     # Windows players see no new build
@@ -556,15 +564,15 @@ jobs:
       run: |
         set -euo pipefail
         trap 'echo "::error::line $LINENO: $BASH_COMMAND"' ERR
-        gh release download "$PREV_TAG" --pattern version.txt --pattern BlackArrowOnline-update.zip
-        mv src/*.tar.zst "BlackArrowOnline-source-$TAG.tar.zst"
+        gh release download "$PREV_TAG" --pattern version.txt --pattern XBemu-update.zip
+        mv src/*.tar.zst "XBemu-source-$TAG.tar.zst"
         cat version.txt
     - name: Write the draft's notes
       if: needs.prepare.outputs.draft == 'true'
       shell: bash
       run: |
         {
-          echo "**Draft test build, not released.** Players never see drafts. To test it, unzip \`BlackArrowOnline-update.zip\` over a copy of a Black Arrow Online folder; it has no build number, so that copy's launcher still offers the next real build."
+          echo "**Draft test build, not released.** Players never see drafts. To test it, unzip \`XBemu-update.zip\` over a copy of a XBemu folder; it has no build number, so that copy's launcher still offers the next real build."
           echo
           echo "To take this xemu release, merge it by hand, test, and push to main; delete this draft afterwards."
           echo
@@ -576,17 +584,17 @@ jobs:
       run: |
         set -euo pipefail
         trap 'echo "::error::line $LINENO: $BASH_COMMAND"' ERR
-        images="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${COMMIT}/black-arrow-online/docs/images"
+        images="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${COMMIT}/xbemu/docs/images"
         {
-          echo "Build $LABEL of Black Arrow Online, based on xemu ${UPSTREAM#v} (source version $VERSION)."
+          echo "Build $LABEL of XBemu, based on xemu ${UPSTREAM#v} (source version $VERSION)."
           echo
           if [ "${BETA:-0}" != 0 ]; then
             echo "<!-- systems: $SYSTEMS -->"
-            echo "**Beta build.** Only players who ticked Help > Versions & Updates > Get beta builds are offered it. Everyone else stays on ${PREV_TAG#build-}."
+            echo "**Beta build.** Only players who ticked Help > Versions & Updates > Get beta builds are offered it. Everyone else stays on ${PREV_TAG#xbemu-}."
             echo
           elif [ "${SUB:-0}" != 0 ]; then
             echo "<!-- systems: $SYSTEMS -->"
-            echo "A sub build for $(echo "$SYSTEMS" | sed 's/windows/Windows/; s/mac/Mac/; s/linux/Linux/; s/ /, /g') only. Other systems keep the files of ${PREV_TAG#build-} (build ${PREV_TAG#build-}) and are not offered anything."
+            echo "A sub build for $(echo "$SYSTEMS" | sed 's/windows/Windows/; s/mac/Mac/; s/linux/Linux/; s/ /, /g') only. Other systems keep the files of ${PREV_TAG#xbemu-} (build ${PREV_TAG#xbemu-}) and are not offered anything."
             echo
           fi
           if [ -s meta/changes.md ]; then
@@ -597,29 +605,29 @@ jobs:
           fi
           echo "### How to get it"
           echo
-          echo "**Already playing?** Start Black Arrow Online as usual. It finds this build and offers to install it. Your console, Xbox Live sign-in, saves, settings and games are not touched."
+          echo "**Already playing?** Start XBemu as usual. It finds this build and offers to install it. Your console, Xbox Live sign-in, saves, settings and games are not touched."
           echo
           echo "<img src=\"$images/launcher-update.png\" width=\"420\" alt=\"The update window\">"
           echo
-          echo "To update by hand, close the emulator and unzip \`BlackArrowOnline-update.zip\` over your Black Arrow Online folder."
+          echo "To update by hand, close the emulator and unzip \`XBemu-update.zip\` over your XBemu folder."
           echo
-          echo "**New here?** Get the full package from where Black Arrow Online is shared. This download is an update for a package you already have: it has no Xbox BIOS, dashboard or game files and cannot set up a new console on its own. See the [README](https://github.com/${GITHUB_REPOSITORY}#readme)."
+          echo "**New here?** Get the full package from where XBemu is shared. This download is an update for a package you already have: it has no Xbox BIOS, dashboard or game files and cannot set up a new console on its own. See the [README](https://github.com/${GITHUB_REPOSITORY}#readme)."
           echo
           echo "### Files"
           echo
           echo "| File | What it is |"
           echo "|---|---|"
-          echo "| \`BlackArrowOnline-update.zip\` | The launcher, xemu.exe, the shader list and the XBL Dashboard installer |"
+          echo "| \`XBemu-update.zip\` | The launcher, xemu.exe, the shader list and the XBL Dashboard installer |"
           echo "| \`version.txt\` | What the launcher reads to find this build |"
-          echo "| \`BlackArrowOnline-source-$TAG.tar.zst\` | The complete source this build was made from |"
+          echo "| \`XBemu-source-$TAG.tar.zst\` | The complete source this build was made from |"
         } > notes.md
     - name: Keep the test build
       if: needs.prepare.outputs.publish != 'true' && needs.prepare.outputs.draft != 'true'
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4
       with:
-        name: BlackArrowOnline-windows-test
+        name: XBemu-windows-test
         path: |
-          BlackArrowOnline-update.zip
+          XBemu-update.zip
           version.txt
           notes.md
         compression-level: 0
@@ -638,8 +646,8 @@ jobs:
         fi
         if ! out=$(gh release create "$TAG" --target "$COMMIT" "${kind[@]}" \
             --title "$title" --notes-file notes.md \
-            BlackArrowOnline-update.zip version.txt \
-            "BlackArrowOnline-source-$TAG.tar.zst" 2>&1); then
+            XBemu-update.zip version.txt \
+            "XBemu-source-$TAG.tar.zst" 2>&1); then
           echo "::error::$(echo "$out" | tr '\n' ' ')"
           exit 1
         fi
@@ -652,8 +660,8 @@ jobs:
       run: |
         if ! out=$(gh release create "$TAG" --draft \
             --title "Test: xemu ${UPSTREAM#v} (not released)" --notes-file notes.md \
-            BlackArrowOnline-update.zip version.txt \
-            "BlackArrowOnline-source-$TAG.tar.zst" 2>&1); then
+            XBemu-update.zip version.txt \
+            "XBemu-source-$TAG.tar.zst" 2>&1); then
           echo "::error::$(echo "$out" | tr '\n' ' ')"
           exit 1
         fi
@@ -698,8 +706,8 @@ jobs:
           macos-pkgs
           ${{ env.CCACHE_DIR }}
           ${{ env.LTO_CACHE_DIR }}
-        key: cache-bao-macos-${{ matrix.arch }}-${{ github.sha }}
-        restore-keys: cache-bao-macos-${{ matrix.arch }}-
+        key: cache-xbemu-macos-${{ matrix.arch }}-${{ github.sha }}
+        restore-keys: cache-xbemu-macos-${{ matrix.arch }}-
     - name: Setup ccache
       run: |
         echo "PATH=/opt/homebrew/opt/ccache/libexec:$PATH" >> "$GITHUB_ENV"
@@ -792,8 +800,8 @@ jobs:
       with:
         ref: ${{ needs.prepare.outputs.commit }}
         sparse-checkout: |
-          black-arrow-online/mac
-          black-arrow-online/package
+          xbemu/mac
+          xbemu/package
     - name: Download the Mac app
       uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v4
       with:
@@ -809,17 +817,17 @@ jobs:
         set -euo pipefail
         trap 'echo "::error::line $LINENO: $BASH_COMMAND"' ERR
         # Same top folder as the Windows package, so the full package made
-        # from this zip unzips to BlackArrowOnline/ with system/ beside the app
-        pkg=BlackArrowOnline
+        # from this zip unzips to XBemu/ with system/ beside the app
+        pkg=XBemu
         mkdir -p unpacked "$pkg"
         (cd unpacked && unzip -q ../app/*.zip)
-        mv unpacked/xemu.app "$pkg/Black Arrow Online.app"
-        cp black-arrow-online/mac/README.txt "$pkg/README.txt"
-        install -m 755 black-arrow-online/mac/setup.sh "$pkg/setup.sh"
-        cp black-arrow-online/package/shader-list.bin "$pkg/shader-list.bin"
+        mv unpacked/xemu.app "$pkg/XBemu.app"
+        cp xbemu/mac/README.txt "$pkg/README.txt"
+        install -m 755 xbemu/mac/setup.sh "$pkg/setup.sh"
+        cp xbemu/package/shader-list.bin "$pkg/shader-list.bin"
         # XBL Dashboard installer (shipped with its creator's permission):
         # setup.sh copies it to system/, and xemu runs it once
-        cp "black-arrow-online/package/XBL Dashboard Installer.iso" "$pkg/XBL Dashboard Installer.iso"
+        cp "xbemu/package/XBL Dashboard Installer.iso" "$pkg/XBL Dashboard Installer.iso"
         # A test build has no build number, so the app takes any build over it
         build=""
         if [ "$PUBLISH" = true ]; then
@@ -839,16 +847,16 @@ jobs:
         ls -la "$pkg"
         # zip keeps the app's links and executable bits, which the artifact
         # zip around it would not
-        zip -qry BlackArrowOnline-mac-update.zip "$pkg"
+        zip -qry XBemu-mac-update.zip "$pkg"
         cp "$pkg/version.txt" mac-version.txt
-        echo "sha256=$(sha256sum BlackArrowOnline-mac-update.zip | cut -d' ' -f1)" >> mac-version.txt
+        echo "sha256=$(sha256sum XBemu-mac-update.zip | cut -d' ' -f1)" >> mac-version.txt
         cat mac-version.txt
     - name: Upload
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4
       with:
-        name: BlackArrowOnline-mac
+        name: XBemu-mac
         path: |
-          BlackArrowOnline-mac-update.zip
+          XBemu-mac-update.zip
           mac-version.txt
         compression-level: 0
 
@@ -870,10 +878,10 @@ jobs:
       if: contains(needs.prepare.outputs.systems, 'mac')
       uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v4
       with:
-        name: BlackArrowOnline-mac
+        name: XBemu-mac
     - name: Copy the Mac files of the build before
       if: "!contains(needs.prepare.outputs.systems, 'mac')"
-      run: gh release download "$PREV_TAG" --pattern mac-version.txt --pattern BlackArrowOnline-mac-update.zip
+      run: gh release download "$PREV_TAG" --pattern mac-version.txt --pattern XBemu-mac-update.zip
     - name: Add the Mac section to the release notes
       if: needs.prepare.outputs.publish == 'true'
       run: |
@@ -885,25 +893,25 @@ jobs:
           echo "### Mac"
           echo
           if [ "$COPIED" = true ]; then
-            echo "Unchanged: the Mac files of build ${PREV_TAG#build-}, so Macs are not offered anything new."
+            echo "Unchanged: the Mac files of build ${PREV_TAG#xbemu-}, so Macs are not offered anything new."
             echo
           fi
           echo "For Apple Silicon Macs with macOS 14 or newer and Intel Macs with macOS 11 or newer."
           echo
-          echo "**Already playing on a Mac?** Black Arrow Online offers this build by itself a few seconds after it starts: click **Update now**. It closes, installs the build and opens again. Your console, Xbox Live sign-in, saves, settings and games are not touched."
+          echo "**Already playing on a Mac?** XBemu offers this build by itself a few seconds after it starts: click **Update now**. It closes, installs the build and opens again. Your console, Xbox Live sign-in, saves, settings and games are not touched."
           echo
-          echo "To update by hand, download \`BlackArrowOnline-mac-update.zip\`, unzip it in Downloads and paste the Terminal line from its README.txt."
+          echo "To update by hand, download \`XBemu-mac-update.zip\`, unzip it in Downloads and paste the Terminal line from its README.txt."
           echo
-          echo "**New on a Mac?** Get the full Mac package from where Black Arrow Online is shared. This download has no Xbox BIOS, dashboard or game files."
+          echo "**New on a Mac?** Get the full Mac package from where XBemu is shared. This download has no Xbox BIOS, dashboard or game files."
           echo
           echo "| File | What it is |"
           echo "|---|---|"
-          echo "| \`BlackArrowOnline-mac-update.zip\` | The Mac app, its setup script and the shader list |"
+          echo "| \`XBemu-mac-update.zip\` | The Mac app, its setup script and the shader list |"
           echo "| \`mac-version.txt\` | What the Mac app reads to find this build |"
         } >> notes.md
     - name: Publish
       run: |
-        if ! out=$(gh release upload "$TAG" BlackArrowOnline-mac-update.zip \
+        if ! out=$(gh release upload "$TAG" XBemu-mac-update.zip \
             mac-version.txt 2>&1); then
           echo "::error::$(echo "$out" | tr '\n' ' ')"
           exit 1
@@ -943,8 +951,8 @@ jobs:
         path: |
           ${{ env.CCACHE_DIR }}
           ${{ env.LTO_CACHE_DIR }}
-        key: cache-bao-linux-${{ github.sha }}
-        restore-keys: cache-bao-linux-
+        key: cache-xbemu-linux-${{ github.sha }}
+        restore-keys: cache-xbemu-linux-
     - name: Download source package
       uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v4
       with:
@@ -953,7 +961,7 @@ jobs:
       run: |
         mkdir src
         tar -xf xemu-${{ needs.prepare.outputs.version }}.tar.zst -C src --strip-components=2
-        printf 'xemu (1:0.0.0-0) unstable; urgency=medium\n\n  Built from %s\n\n -- Black Arrow Online <noreply@github.com>  %s\n' \
+        printf 'xemu (1:0.0.0-0) unstable; urgency=medium\n\n  Built from %s\n\n -- XBemu <noreply@github.com>  %s\n' \
             "${{ needs.prepare.outputs.version }}" "$(date -R)" > src/debian/changelog
     - name: Install dependencies
       env:
@@ -1035,8 +1043,8 @@ jobs:
       with:
         ref: ${{ needs.prepare.outputs.commit }}
         sparse-checkout: |
-          black-arrow-online/linux
-          black-arrow-online/package
+          xbemu/linux
+          xbemu/package
     - name: Download the Linux app
       uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v4
       with:
@@ -1051,16 +1059,16 @@ jobs:
         set -euo pipefail
         trap 'echo "::error::line $LINENO: $BASH_COMMAND"' ERR
         # Same top folder as the Windows package, so the full package made
-        # from this unpacks to BlackArrowOnline/ with system/ beside the app
-        pkg=BlackArrowOnline
+        # from this unpacks to XBemu/ with system/ beside the app
+        pkg=XBemu
         mkdir -p "$pkg"
         tar -xzf xemu-linux-app.tar.gz -C "$pkg"
-        cp black-arrow-online/linux/README.txt "$pkg/README.txt"
-        install -m 755 black-arrow-online/linux/setup.sh "$pkg/setup.sh"
-        cp black-arrow-online/package/shader-list.bin "$pkg/shader-list.bin"
+        cp xbemu/linux/README.txt "$pkg/README.txt"
+        install -m 755 xbemu/linux/setup.sh "$pkg/setup.sh"
+        cp xbemu/package/shader-list.bin "$pkg/shader-list.bin"
         # XBL Dashboard installer (shipped with its creator's permission):
         # setup.sh copies it to system/, and xemu runs it once
-        cp "black-arrow-online/package/XBL Dashboard Installer.iso" "$pkg/XBL Dashboard Installer.iso"
+        cp "xbemu/package/XBL Dashboard Installer.iso" "$pkg/XBL Dashboard Installer.iso"
         # A test build has no build number, so the app takes any build over it
         build=""
         if [ "$PUBLISH" = true ]; then
@@ -1080,16 +1088,16 @@ jobs:
         ls -la "$pkg"
         # tar keeps the app's links and executable bits, which the artifact
         # zip around it would not
-        tar -czf BlackArrowOnline-linux-update.tar.gz "$pkg"
+        tar -czf XBemu-linux-update.tar.gz "$pkg"
         cp "$pkg/version.txt" linux-version.txt
-        echo "sha256=$(sha256sum BlackArrowOnline-linux-update.tar.gz | cut -d' ' -f1)" >> linux-version.txt
+        echo "sha256=$(sha256sum XBemu-linux-update.tar.gz | cut -d' ' -f1)" >> linux-version.txt
         cat linux-version.txt
     - name: Upload
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4
       with:
-        name: BlackArrowOnline-linux
+        name: XBemu-linux
         path: |
-          BlackArrowOnline-linux-update.tar.gz
+          XBemu-linux-update.tar.gz
           linux-version.txt
         compression-level: 0
 
@@ -1113,10 +1121,10 @@ jobs:
       if: contains(needs.prepare.outputs.systems, 'linux')
       uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v4
       with:
-        name: BlackArrowOnline-linux
+        name: XBemu-linux
     - name: Copy the Linux files of the build before
       if: "!contains(needs.prepare.outputs.systems, 'linux')"
-      run: gh release download "$PREV_TAG" --pattern linux-version.txt --pattern BlackArrowOnline-linux-update.tar.gz
+      run: gh release download "$PREV_TAG" --pattern linux-version.txt --pattern XBemu-linux-update.tar.gz
     - name: Add the Linux section to the release notes
       if: needs.prepare.outputs.publish == 'true'
       run: |
@@ -1128,25 +1136,25 @@ jobs:
           echo "### Linux"
           echo
           if [ "$COPIED" = true ]; then
-            echo "Unchanged: the Linux files of build ${PREV_TAG#build-}, so Linux players are not offered anything new."
+            echo "Unchanged: the Linux files of build ${PREV_TAG#xbemu-}, so Linux players are not offered anything new."
             echo
           fi
           echo "For 64-bit PCs and the Steam Deck with a Linux from 2022 or later (Ubuntu 22.04, Fedora 36, SteamOS 3...)."
           echo
-          echo "**Already playing on Linux?** Black Arrow Online offers this build by itself a few seconds after it starts: click **Update now**. It closes, installs the build and opens again. Your console, Xbox Live sign-in, saves, settings and games are not touched."
+          echo "**Already playing on Linux?** XBemu offers this build by itself a few seconds after it starts: click **Update now**. It closes, installs the build and opens again. Your console, Xbox Live sign-in, saves, settings and games are not touched."
           echo
-          echo "To update by hand, download \`BlackArrowOnline-linux-update.tar.gz\`, unpack it and run \`bash setup.sh\` in its folder."
+          echo "To update by hand, download \`XBemu-linux-update.tar.gz\`, unpack it and run \`bash setup.sh\` in its folder."
           echo
-          echo "**New on Linux?** Get the full Linux package from where Black Arrow Online is shared. This download has no Xbox BIOS, dashboard or game files."
+          echo "**New on Linux?** Get the full Linux package from where XBemu is shared. This download has no Xbox BIOS, dashboard or game files."
           echo
           echo "| File | What it is |"
           echo "|---|---|"
-          echo "| \`BlackArrowOnline-linux-update.tar.gz\` | The Linux app, its setup script and the shader list |"
+          echo "| \`XBemu-linux-update.tar.gz\` | The Linux app, its setup script and the shader list |"
           echo "| \`linux-version.txt\` | What the Linux app reads to find this build |"
         } >> notes.md
     - name: Publish
       run: |
-        if ! out=$(gh release upload "$TAG" BlackArrowOnline-linux-update.tar.gz \
+        if ! out=$(gh release upload "$TAG" XBemu-linux-update.tar.gz \
             linux-version.txt 2>&1); then
           echo "::error::$(echo "$out" | tr '\n' ' ')"
           exit 1

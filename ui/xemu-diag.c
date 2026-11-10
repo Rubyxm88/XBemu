@@ -557,7 +557,7 @@ static void write_header(FILE *f, const char *title)
 {
     GDateTime *now = g_date_time_new_now_local();
     char *when = g_date_time_format(now, "%Y-%m-%d %H:%M:%S");
-    fprintf(f, "# Black Arrow Online %s %s\n", title, when);
+    fprintf(f, "# XBemu %s %s\n", title, when);
     g_free(when);
     g_date_time_unref(now);
 

@@ -360,11 +360,11 @@ void DashInstallDraw()
         float inner = ImGui::GetContentRegionAvail().x;
 
         // Logo
-        if (g_bao_logo_tex && g_bao_logo_w > 0) {
+        if (g_xbemu_logo_tex && g_xbemu_logo_w > 0) {
             float lw = std::min(inner, 400.0f * scale);
-            float lh = lw * g_bao_logo_h / g_bao_logo_w;
+            float lh = lw * g_xbemu_logo_h / g_xbemu_logo_w;
             ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (inner - lw) / 2);
-            ImGui::Image((ImTextureID)(intptr_t)g_bao_logo_tex,
+            ImGui::Image((ImTextureID)(intptr_t)g_xbemu_logo_tex,
                          ImVec2(lw, lh));
             ImGui::Dummy(ImVec2(0, 14.0f * scale));
         }
