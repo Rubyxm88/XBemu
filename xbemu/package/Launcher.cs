@@ -709,8 +709,8 @@ static class Updater
         return request;
     }
 
-    // The beta channel: update-channel.txt says "beta" (Versions & Updates >
-    // Get beta builds in xemu writes it)
+    // The beta channel: update-channel.txt says "beta" (the Stable | Beta
+    // switch in xemu's Versions & Updates, or in the update window, writes it)
     public static bool BetaChannel()
     {
         try {
@@ -720,6 +720,19 @@ static class Updater
             return false;
         } catch (UnauthorizedAccessException) {
             return false;
+        }
+    }
+
+    public static void SetBetaChannel(bool beta)
+    {
+        try {
+            if (beta) {
+                File.WriteAllText(InSystem("update-channel.txt"), "beta\n");
+            } else {
+                File.Delete(InSystem("update-channel.txt"));
+            }
+        } catch (IOException) {
+        } catch (UnauthorizedAccessException) {
         }
     }
 
@@ -1302,7 +1315,7 @@ class UpdateForm : Form
 
     readonly UpdateInfo update;
     readonly string preview;
-    readonly Button updateButton, laterButton, skipButton;
+    readonly Button updateButton, laterButton, skipButton, stableButton, betaButton;
     readonly ProgressBar progress;
     readonly Label status;
 
@@ -1325,7 +1338,14 @@ class UpdateForm : Form
 
         UpdateInfo installed = Updater.Installed();
         Theme.AddLabel(this, update.IsBeta ? "A beta build is available" : "An update is available",
-                       24, 16, 512, 38, 18F, true, Theme.TextColor);
+                       24, 16, 380, 38, 18F, true, Theme.TextColor);
+
+        // Stable | Beta in the top right corner: which builds are offered
+        stableButton = Theme.AddButton(this, "Stable", 404, 22, 66, 28, false);
+        betaButton = Theme.AddButton(this, "Beta", 471, 22, 65, 28, false);
+        stableButton.Click += delegate { SetChannel(false); };
+        betaButton.Click += delegate { SetChannel(true); };
+        ShowChannel();
 
         var panel = new Panel();
         panel.SetBounds(24, 66, 512, 132);
@@ -1366,6 +1386,7 @@ class UpdateForm : Form
         progress.Style = ProgressBarStyle.Continuous;
         progress.Visible = false;
         Controls.Add(progress);
+        ShowChannel();
     }
 
     protected override void OnShown(EventArgs e)
@@ -1374,6 +1395,28 @@ class UpdateForm : Form
         if (preview != null) {
             Theme.SavePreview(this, preview);
             Close();
+        }
+    }
+
+    void SetChannel(bool beta)
+    {
+        Updater.SetBetaChannel(beta);
+        ShowChannel();
+    }
+
+    // The chosen side is green. A beta offered here is not installed from
+    // Stable: the next start offers the newest stable build instead.
+    void ShowChannel()
+    {
+        bool beta = Updater.BetaChannel();
+        stableButton.BackColor = beta ? Theme.Grey : Theme.Green;
+        betaButton.BackColor = beta ? Theme.Green : Theme.Grey;
+        if (updateButton != null) {
+            updateButton.Enabled = beta || !update.IsBeta;
+            if (status != null) {
+                status.Text = updateButton.Enabled ? "" :
+                    "Stable: betas are not offered. Close to keep your build.";
+            }
         }
     }
 

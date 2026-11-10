@@ -791,6 +791,49 @@ void VersionsWindow::Draw()
     // What is installed
     const LocalVersion &local = Installed();
     int newest = NewestBuild();
+
+    // Stable | Beta, in the top right corner: which builds are offered.
+    // Leaving Beta while a beta is installed asks whether to go back to the
+    // latest stable build now or keep the beta until the next stable one.
+    static bool ask_back_to_stable;
+    bool beta = BetaChannel();
+    {
+        ImVec2 keep = ImGui::GetCursorPos();
+        const char *names[2] = { "Stable", "Beta" };
+        ImGuiStyle &style = ImGui::GetStyle();
+        float w0 = ImGui::CalcTextSize(names[0]).x + style.FramePadding.x * 2;
+        float w1 = ImGui::CalcTextSize(names[1]).x + style.FramePadding.x * 2;
+        ImGui::SetCursorPos(ImVec2(ImGui::GetWindowContentRegionMax().x - w0 -
+                                       w1 - 1.0f * scale,
+                                   keep.y));
+        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing,
+                            ImVec2(1.0f * scale, style.ItemSpacing.y));
+        for (int i = 0; i < 2; i++) {
+            bool on = (i == 1) == beta;
+            if (i) {
+                ImGui::SameLine();
+            }
+            if (on) {
+                PushGreenButtons();
+            }
+            if (ImGui::SmallButton(names[i]) && !on) {
+                SetBetaChannel(i == 1);
+                Load("channel");
+                ask_back_to_stable = i == 0 && BuildIsBeta(local.build);
+                beta = i == 1;
+            }
+            if (on) {
+                PopButtonColors();
+            }
+            if (ImGui::IsItemHovered()) {
+                ImGui::SetTooltip(i ? "Also get test builds early. They may "
+                                      "have problems."
+                                    : "Full builds only.");
+            }
+        }
+        ImGui::PopStyleVar();
+        ImGui::SetCursorPos(keep);
+    }
     ImGui::PushFont(g_font_mgr.m_menu_font_medium);
     if (!local.label.empty()) {
         ImGui::Text("%s", local.label.c_str());
@@ -828,22 +871,41 @@ void VersionsWindow::Draw()
     ImGui::TextWrapped("Install any build from the releases page: a newer "
                        "one to update, or roll back to an older one if the "
                        "newest gives you trouble.");
-    bool beta = BetaChannel();
-    if (ImGui::Checkbox("Get beta builds", &beta)) {
-        SetBetaChannel(beta);
-        Load("channel");
+    if (beta) {
+        ImGui::TextDisabled("Beta: test builds (such as 1.0.1) are offered at "
+                            "start too. They may have problems.");
+    } else if (BuildIsBeta(local.build) && !ask_back_to_stable) {
+        ImGui::TextDisabled("Stable: you keep this beta until the next stable "
+                            "build, or roll back below.");
     }
-    ImGui::SameLine();
-    if (beta && BuildIsBeta(local.build)) {
-        ImGui::TextDisabled("Betas are offered at start, like full builds.");
+    if (ask_back_to_stable && !beta) {
+        // The newest stable build that is not marked broken
+        int stable = 0;
+        for (const ReleaseBuild &b : builds) {
+            if (!BuildIsBeta(b.build) && b.broken.empty() && b.build > stable) {
+                stable = b.build;
+            }
+        }
+        ImGui::TextColored(update_color, "You are on beta %s.",
+                           BuildText(local.build).c_str());
+        ImGui::SameLine();
+        ImGui::BeginDisabled(stable == 0 || m_installing);
+        PushGreenButtons();
+        if (ImGui::SmallButton(stable ? ("Go back to stable " +
+                                         BuildText(stable) + " now").c_str()
+                                      : "Go back to stable now")) {
+            m_confirm = stable;
+            m_install_error.clear();
+            ask_back_to_stable = false;
+        }
+        PopButtonColors();
+        ImGui::EndDisabled();
+        ImGui::SameLine();
+        if (ImGui::SmallButton("Stay until the next stable")) {
+            ask_back_to_stable = false;
+        }
     } else if (beta) {
-        ImGui::TextDisabled("Betas (such as 27.3.1) are offered at start, "
-                            "like full builds.");
-    } else if (BuildIsBeta(local.build)) {
-        ImGui::TextDisabled("You keep this beta until the next full build, or "
-                            "roll back below.");
-    } else {
-        ImGui::TextDisabled("Try new builds early. They may have problems.");
+        ask_back_to_stable = false;
     }
     if (!m_install_error.empty()) {
         ImGui::TextColored(problem_color, "%s", m_install_error.c_str());
