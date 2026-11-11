@@ -19,11 +19,9 @@
 set -euo pipefail
 
 here="$(cd "$(dirname "$0")" && pwd)"
+# Always XBemu's own folder: a Black Arrow Online install on the same PC is
+# never read or changed
 data="${XDG_DATA_HOME:-$HOME/.local/share}/XBemu"
-# A copy moved from Black Arrow Online keeps its folder (xemu uses it too)
-if [ -d "${XDG_DATA_HOME:-$HOME/.local/share}/Black Arrow Online/system" ]; then
-    data="${XDG_DATA_HOME:-$HOME/.local/share}/Black Arrow Online"
-fi
 system="$data/system"
 games="$data/games"
 app="$data/app"
@@ -174,11 +172,9 @@ report_tool() {
 # XBemu report. Start it from the applications menu, best while
 # the problem is happening (with the game still open): it makes a .tar.gz in
 # Downloads to send to whoever shared the package.
+# Always XBemu's own folder: a Black Arrow Online install on the same PC is
+# never read or changed
 data="${XDG_DATA_HOME:-$HOME/.local/share}/XBemu"
-# A copy moved from Black Arrow Online keeps its folder (xemu uses it too)
-if [ -d "${XDG_DATA_HOME:-$HOME/.local/share}/Black Arrow Online/system" ]; then
-    data="${XDG_DATA_HOME:-$HOME/.local/share}/Black Arrow Online"
-fi
 runlog="$data/system/report-run.log"
 mkdir -p "$data/system" 2>/dev/null
 NL=$'\n'
@@ -494,8 +490,8 @@ done
 if [ ! -f "$system/xemu.toml" ]; then
     default_settings > "$system/xemu.toml"
 fi
-# XBemu runs OXOS only: a settings file from a moved Black Arrow Online copy
-# may still name a stock BIOS and MCPX
+# XBemu runs OXOS only: an older XBemu settings file may still name a stock
+# BIOS and MCPX
 oxos_line="flashrom_path = '$(oxos_bios)'"
 if ! grep -qxF "$oxos_line" "$system/xemu.toml" ||
    grep -qE '^bootrom_path = ' "$system/xemu.toml"; then
@@ -531,14 +527,15 @@ if [ -n "$update_pid" ]; then
 fi
 
 echo
-echo "Done. XBemu is in your applications menu."
+echo "Done. XBemu is in your applications menu, and it opens now."
 echo "If something goes wrong, start \"XBemu Report\" from the same menu"
 echo "(with the game still open if it is stuck) and send the file it makes."
 if $first_time; then
     echo "Put your game disc images (.iso) in the games"
-    echo "folder, which opens now:"
+    echo "folder, which opens too:"
     echo "  $games"
     xdg-open "$games" >/dev/null 2>&1 &
 else
     echo "Your console and games are as you left them."
 fi
+start_app || echo "Could not open $app/AppRun"

@@ -20,28 +20,32 @@ You need:
 1. Download the full package: on the page above, under Download, click
    XBemu-linux-...-full.tar.gz.
 
-2. Unpack it: right-click it in your file manager and choose Extract Here
-   (Steam Deck: switch to Desktop Mode first, then use Dolphin). You get a
-   XBemu folder.
+2. Open a terminal (Ctrl+Alt+T on most systems, or Terminal in your
+   applications menu; Steam Deck: switch to Desktop Mode, then open
+   Konsole).
 
-3. Open a terminal in that folder: right-click inside the XBemu
-   folder and choose Open Terminal Here (or Open in Terminal). Type this and
+3. Copy this line exactly, paste it into the terminal (Ctrl+Shift+V) and
    press Enter:
 
-     bash setup.sh
+     cd ~/Downloads && tar -xzf "$(ls -t XBemu-linux-*-full.tar.gz | head -n 1)" && bash XBemu/setup.sh
 
-   Wait until it says Done. Nothing else to type, and no password: it only
-   writes to your own home folder.
+   It unpacks the download, installs XBemu and starts it. Wait until it
+   says Done. Nothing else to type, and no password: it only writes to
+   your own home folder.
 
-   This installs the app, sets up the Xbox files and your console, and adds
-   XBemu and XBemu Report to your applications menu.
+   (Saved the download somewhere else? Unpack it there, open a terminal in
+   the XBemu folder and type: bash setup.sh)
 
-4. A games folder opens. Copy your game .iso files into it.
+   This installs the app, sets up the Xbox files and a new console, and
+   adds XBemu and XBemu Report to your applications menu. XBemu has its
+   own folder: a Black Arrow Online install on the same PC is not touched.
 
-5. Start XBemu from your applications menu (Steam Deck: the
-   Games section of the application launcher).
+4. XBemu opens, and so does its games folder: copy your game .iso files
+   into it. Next time, start XBemu from your applications menu (Steam
+   Deck: the Games section of the application launcher).
 
-You can delete the downloaded file and folder afterwards.
+You can delete the downloaded file and the XBemu folder in Downloads
+afterwards.
 
 
 STEAM DECK: GAME MODE

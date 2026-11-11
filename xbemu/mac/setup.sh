@@ -21,11 +21,9 @@
 set -euo pipefail
 
 here="$(cd "$(dirname "$0")" && pwd)"
+# Always XBemu's own folder: a Black Arrow Online install on the same Mac
+# is never read or changed
 data="$HOME/Library/Application Support/XBemu"
-# A copy moved from Black Arrow Online keeps its folder (xemu uses it too)
-if [ -d "$HOME/Library/Application Support/Black Arrow Online/system" ]; then
-    data="$HOME/Library/Application Support/Black Arrow Online"
-fi
 system="$data/system"
 games="$data/games"
 name="XBemu.app"
@@ -127,11 +125,9 @@ report_tool() {
 # XBemu report. Double-click it, best while the problem is
 # happening (with the game still open): it makes a zip in Downloads to send
 # to whoever shared the package.
+# Always XBemu's own folder: a Black Arrow Online install on the same Mac
+# is never read or changed
 data="$HOME/Library/Application Support/XBemu"
-# A copy moved from Black Arrow Online keeps its folder (xemu uses it too)
-if [ -d "$HOME/Library/Application Support/Black Arrow Online/system" ]; then
-    data="$HOME/Library/Application Support/Black Arrow Online"
-fi
 name="XBemu.app"
 stamp="$(date +%Y-%m-%d_%H%M%S)"
 out="$HOME/Downloads/XBemu-report-$stamp"
@@ -317,8 +313,8 @@ done
 if [ ! -f "$system/xemu.toml" ]; then
     default_settings > "$system/xemu.toml"
 fi
-# XBemu runs OXOS only: a settings file from a moved Black Arrow Online copy
-# may still name a stock BIOS and MCPX
+# XBemu runs OXOS only: an older XBemu settings file may still name a stock
+# BIOS and MCPX
 oxos_line="flashrom_path = '$(oxos_bios)'"
 if ! grep -qxF "$oxos_line" "$system/xemu.toml" ||
    grep -qE '^bootrom_path = ' "$system/xemu.toml"; then
@@ -359,15 +355,15 @@ if [ -n "$update_pid" ]; then
 fi
 
 echo
-echo "Done."
+echo "Done. XBemu opens now; next time, start it from Applications."
 echo "If something goes wrong, open Applications and double-click"
 echo "\"XBemu Report\" (with the game still open if it is stuck). Send"
 echo "the XBemu-report zip it puts in Downloads."
 if $first_time; then
     echo "Put your game disc images (.iso) in the games"
-    echo "folder, which opens now, then start XBemu from Applications."
+    echo "folder, which opens too."
     open "$games"
 else
-    echo "Your console and games are as you left them. Start XBemu"
-    echo "from Applications."
+    echo "Your console and games are as you left them."
 fi
+open "$app" || echo "Could not open $app"

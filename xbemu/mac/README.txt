@@ -26,22 +26,24 @@ You need:
 
 3. Open Terminal: press Cmd+Space, type Terminal, press Return.
 
-4. Copy this line exactly, paste it into Terminal (Cmd+V), press Return:
+4. Copy this line exactly, paste it into Terminal (Cmd+V), press Return.
+   It installs XBemu and starts it:
 
      bash "$(ls -td ~/Downloads/XBemu*/ | head -n 1)setup.sh"
 
    If macOS asks whether Terminal may access files in your Downloads folder,
    click OK. Wait until it says Done. Nothing else to type.
 
-   This installs the app in Applications, sets up the Xbox files and your
-   console, and tells macOS the app is safe to open. You will not need
-   "Open Anyway" in System Settings.
+   This installs the app in Applications, sets up the Xbox files and a
+   new console, tells macOS the app is safe to open (you will not need
+   "Open Anyway" in System Settings), and starts XBemu. XBemu has its own
+   folder: a Black Arrow Online install on the same Mac is not touched.
 
-5. A games folder opens. Drag your game .iso files into it.
-
-6. Open XBemu from Applications (or Launchpad). If macOS asks
-   whether the app may accept incoming network connections or find devices
-   on your local network, click Allow: XB Online needs both.
+5. XBemu opens, and so does its games folder: drag your game .iso files
+   into it. If macOS asks whether the app may accept incoming network
+   connections or find devices on your local network, click Allow: XB
+   Online needs both. Next time, open XBemu from Applications (or
+   Launchpad).
 
 You can delete the downloaded zip and folder afterwards.
 

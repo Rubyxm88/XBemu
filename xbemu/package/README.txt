@@ -144,12 +144,12 @@ To turn the check off, create an empty file system\no-update-check.txt.
 Builds and notes: https://github.com/Rubyxm88/XBemu/releases
 
 
-COMING FROM BLACK ARROW ONLINE
-------------------------------
-A Black Arrow Online folder that updated to XBemu keeps its console, Xbox
-Live sign-in, saves, settings, shaders and games. It switches to OXOS like
-every XBemu copy. Help > Versions & Updates has one way back:
-"Black Arrow Online (last build)".
+BLACK ARROW ONLINE ON THE SAME PC
+---------------------------------
+XBemu is a separate install with its own console. It never reads or
+changes a Black Arrow Online folder, so both can stay on one PC. Sign in
+to the XBL Dashboard in XBemu once, like on a new console. Don't run both
+at the same time: they use the same network port.
 
 
 CONTROLLER

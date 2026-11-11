@@ -28,8 +28,4 @@
 #define XBEMU_LAUNCHER_EXE "XBemu.exe"
 #define XBEMU_MAC_APP "XBemu.app"
 
-/* Black Arrow Online, the project XBemu came from: a moved copy keeps its
- * data folder on a Mac or Linux */
-#define XBEMU_OLD_NAME "Black Arrow Online"
-
 #endif
