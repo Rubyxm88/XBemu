@@ -77,8 +77,8 @@ void AutoUpdateWindow::Draw()
     };
     const char *available_msg[] = {
         "Update availability unknown.",
-        "This version of xemu is up to date.",
-        "An updated version of xemu is available!",
+        "This version of XBemu is up to date.",
+        "An updated version of XBemu is available!",
     };
 
     if (updater.get_status() == UPDATER_IDLE) {

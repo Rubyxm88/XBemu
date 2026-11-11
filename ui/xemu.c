@@ -1465,7 +1465,7 @@ static void display_very_early_init(DisplayOptions *o)
             "Unable to create OpenGL context. This usually means the\r\n"
             "graphics device on this system does not support OpenGL 4.0.\r\n"
             "\r\n"
-            "xemu cannot continue and will now exit.",
+            "XBemu cannot continue and will now exit.",
             m_window);
         SDL_DestroyWindow(m_window);
         SDL_Quit();
@@ -1679,7 +1679,7 @@ static void setup_nvidia_profile(void)
 
 static void init_sdl_app_metadata(void)
 {
-    SDL_SetAppMetadataProperty(SDL_PROP_APP_METADATA_NAME_STRING, "xemu");
+    SDL_SetAppMetadataProperty(SDL_PROP_APP_METADATA_NAME_STRING, "XBemu");
     SDL_SetAppMetadataProperty(SDL_PROP_APP_METADATA_VERSION_STRING,
                                xemu_version);
     SDL_SetAppMetadataProperty(SDL_PROP_APP_METADATA_IDENTIFIER_STRING,

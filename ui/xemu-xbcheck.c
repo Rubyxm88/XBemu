@@ -407,11 +407,11 @@ static void check_dns(void)
     if (r < 0) {
         dns_result(xb_online ? XBCHECK_WARN : XBCHECK_FAIL,
                    "No answer from %s. Something on this PC or network blocks "
-                   "it: firewall or antivirus (allow xemu), VPN, or the "
+                   "it: firewall or antivirus (allow XBemu), VPN, or the "
                    "router. Try another network (phone hotspot) to tell "
                    "which.%s",
                    server,
-                   xb_online && !noted ? " xemu answers the console's Xbox "
+                   xb_online && !noted ? " XBemu answers the console's Xbox "
                                          "Live lookups itself meanwhile." : "");
     } else if (xb_online &&
                (r == 0 ||
@@ -423,7 +423,7 @@ static void check_dns(void)
         }
         dns_result(XBCHECK_INFO,
                    "This network answers DNS itself (VPN, ISP, router or DNS "
-                   "filter) and gave Xbox Live %s, not XB Online. xemu answers "
+                   "filter) and gave Xbox Live %s, not XB Online. XBemu answers "
                    "Xbox Live for the console from its built-in list, nothing "
                    "to change.",
                    got);
@@ -801,7 +801,7 @@ void xemu_xbcheck_note_dns_fallback(void)
         return;
     }
     snprintf(note, sizeof(note),
-             " xemu answered Xbox Live for the console itself (%s: %s).", name,
+             " XBemu answered Xbox Live for the console itself (%s: %s).", name,
              timed_out ? "no answer" : "wrong answer");
 
     check_init();

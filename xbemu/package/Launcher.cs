@@ -1406,7 +1406,7 @@ class InstallForm : Form
                              "Your console, Xbox Live sign-in, saves, settings and games " +
                              "are not touched.",
                        24, 60, 472, 44, 9F, false, Theme.Dim);
-        status = Theme.AddLabel(this, "Waiting for xemu to close...", 24, 108, 472, 22, 9F,
+        status = Theme.AddLabel(this, "Waiting for XBemu to close...", 24, 108, 472, 22, 9F,
                                 false, Theme.TextColor);
         progress = new ProgressBar();
         progress.SetBounds(24, 136, 472, 8);
@@ -1429,7 +1429,7 @@ class InstallForm : Form
     {
         retryButton.Visible = cancelButton.Visible = false;
         progress.Value = 0;
-        status.Text = "Waiting for xemu to close...";
+        status.Text = "Waiting for XBemu to close...";
 
         var worker = new BackgroundWorker();
         worker.WorkerReportsProgress = true;
@@ -1465,7 +1465,7 @@ class InstallForm : Form
             try {
                 using (Process p = Process.GetProcessById(waitPid)) {
                     if (!p.WaitForExit(60000)) {
-                        throw new IOException("xemu did not close. Close it and try again.");
+                        throw new IOException("XBemu did not close. Close it and try again.");
                     }
                 }
             } catch (ArgumentException) {
@@ -1487,7 +1487,7 @@ class InstallForm : Form
             }
             Thread.Sleep(500);
         }
-        throw new IOException("xemu is still running. Close it and try again.");
+        throw new IOException("XBemu is still running. Close it and try again.");
     }
 }
 
@@ -1992,7 +1992,7 @@ class SetupForm : Form
                 bar.Value = 100;
                 cleanTitle.Text = "Your console is ready";
                 cleanText.ForeColor = Green;
-                cleanText.Text = "Starting xemu...";
+                cleanText.Text = "Starting XBemu...";
                 var close = new System.Windows.Forms.Timer();
                 close.Interval = 900;
                 close.Tick += delegate { close.Stop(); Close(); };

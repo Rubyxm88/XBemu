@@ -77,9 +77,8 @@ static const char *const start_text[] = {
     "add it to Steam to play it in Game Mode (README.txt).",
 #else
     "- Copy your game disc images (.iso) into the \"games\" folder.",
-    "- Start XBemu. A setup window appears once: Start clean "
-    "for a brand new console, or Use my existing xemu files to bring your own "
-    "hard disk (xbox_hdd.qcow2) and console identity (eeprom.bin).",
+    "- Start XBemu. A setup window appears once: Set up my console "
+    "makes a brand new console.",
 #endif
     "- The XBL Dashboard installs itself (about a minute, once), then "
     "opens. Sign in with your xb.live account. No account "
@@ -201,7 +200,7 @@ static const char *const trouble_text[] = {
     "Set both automatically in Windows Settings > Time.",
 #endif
     "- A firewall, antivirus or router DNS setting can be in the way: allow "
-    "xemu through the firewall, or try another network.",
+    "XBemu through the firewall, or try another network.",
     "- Close any other emulator or game, then start again.",
 #if defined(__APPLE__)
     "- Still failing: Troubleshoot > Make a Full Report (or double-click "
@@ -246,7 +245,7 @@ static const char *const hosting_text[] = {
 #elif defined(__linux__)
     "If you run a firewall (ufw, firewalld), allow UDP port 3074.",
 #else
-    "Allow xemu through Windows Firewall when Windows asks.",
+    "Allow XBemu through Windows Firewall when Windows asks.",
 #endif
     "- Players over the internet can join only if your router forwards UDP "
     "port 3074 to this PC.",
