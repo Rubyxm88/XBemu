@@ -8,12 +8,8 @@ are included.
 FIRST TIME
 ----------
 1. Copy your game disc images (.iso) into the "games" folder.
-2. Double-click "XBemu". A setup window appears once:
-     Start clean                 a brand new console, or
-     Use my existing xemu files  copies these into this folder:
-                                   xbox_hdd.qcow2  your Xbox hard disk (required)
-                                   eeprom.bin      its console identity (required)
-                                   BIOS / MCPX     optional (see BIOS below)
+2. Double-click "XBemu". A setup window appears once: click
+   "Set up my console". It makes a brand new console on OXOS.
 3. The XBL Dashboard installs itself (about a minute, one time only), then
    opens. Sign in with your xb.live account.
    Need a code? Menu: XB Live > Link Code.
@@ -92,9 +88,7 @@ BIOS
 ----
 XBemu runs OXOS, the open-source Xbox BIOS (github.com/kooscode/oxos,
 GPL-2.0). It comes with XBemu in system\bios\. Some disc games freeze on it.
-If you have your own Xbox BIOS and MCPX boot ROM, put them in the system
-folder as Complex_4627v1.03.bin and mcpx.bin, then Machine > BIOS > Stock
-BIOS and Restart to Apply. What happened is in system\bios-log.txt.
+XBemu has no other BIOS option. What happened is in system\bios-log.txt.
 
 
 SHADERS
@@ -151,8 +145,8 @@ Builds and notes: https://github.com/Rubyxm88/XBemu/releases
 COMING FROM BLACK ARROW ONLINE
 ------------------------------
 A Black Arrow Online folder that updated to XBemu keeps its console, Xbox
-Live sign-in, saves, settings, shaders, games and its stock BIOS (Black
-Arrow freezes on OXOS). Help > Versions & Updates has one way back:
+Live sign-in, saves, settings, shaders and games. It switches to OXOS like
+every XBemu copy. Help > Versions & Updates has one way back:
 "Black Arrow Online (last build)".
 
 

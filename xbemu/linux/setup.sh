@@ -489,6 +489,18 @@ done
 if [ ! -f "$system/xemu.toml" ]; then
     default_settings > "$system/xemu.toml"
 fi
+# XBemu runs OXOS only: a settings file from a moved Black Arrow Online copy
+# may still name a stock BIOS and MCPX
+oxos_line="flashrom_path = '$(oxos_bios)'"
+if ! grep -qxF "$oxos_line" "$system/xemu.toml" ||
+   grep -qE '^bootrom_path = ' "$system/xemu.toml"; then
+    grep -vE '^(flashrom_path|bootrom_path) = ' "$system/xemu.toml" |
+        awk -v line="$oxos_line" '
+            { print }
+            /^\[sys\.files\]/ { print line; done = 1 }
+            END { if (!done) { print ""; print "[sys.files]"; print line } }'         > "$system/xemu.toml.new"
+    mv "$system/xemu.toml.new" "$system/xemu.toml"
+fi
 first_time=false
 if [ ! -f "$system/xbox_hdd.qcow2" ]; then
     new_console

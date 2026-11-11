@@ -138,10 +138,8 @@ static const char *const account_text[] = {
 static const char *const bios_text[] = {
     "XBemu runs OXOS, the open-source Xbox BIOS (github.com/kooscode/oxos). "
     "It comes with XBemu; no Microsoft files are included.",
-    "Some disc games freeze on their loading screen with OXOS. If you have "
-    "your own Xbox BIOS and MCPX boot ROM, put them in the system folder as "
-    "Complex_4627v1.03.bin and mcpx.bin, then:",
-    "> Machine > BIOS > Stock BIOS, then Restart to Apply",
+    "Some disc games freeze on their loading screen with OXOS. XBemu has no "
+    "other BIOS option.",
     "Game updates come through the XBL Dashboard when a game offers them.",
     NULL
 };

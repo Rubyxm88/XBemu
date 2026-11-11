@@ -277,21 +277,13 @@ static class Launcher
         return File.Exists(Path.Combine(systemDir, name));
     }
 
-    // Whether this folder has the Microsoft BIOS and MCPX (a copy moved from
-    // Black Arrow Online, or files the player added). XBemu itself ships
-    // only OXOS.
-    public static bool HasStockBios
-    {
-        get { return HasBundled(BundledBios) && HasBundled(BundledMcpx); }
-    }
-
     // Whether a clean start is impossible until the content pack is added:
-    // the blank hard disk, and a BIOS (OXOS in the package, or stock)
+    // the blank hard disk and OXOS
     public static bool ContentMissing
     {
         get {
             return !File.Exists(Path.Combine(systemDir, "fresh", "xbox_hdd.qcow2")) ||
-                   (!HasStockBios && !Bios.OxosAvailable);
+                   !Bios.OxosAvailable;
         }
     }
 
@@ -384,11 +376,7 @@ static class Launcher
         }
         CopyFile(Path.Combine(systemDir, "fresh", "xbox_hdd.qcow2"), hddTarget, progress);
         File.Delete(eepromTarget);
-        // OXOS (the default) is set by Bios.Apply right before xemu starts
-        if (HasStockBios) {
-            SetSysFile("flashrom_path", BundledBios);
-            SetSysFile("bootrom_path", BundledMcpx);
-        }
+        // OXOS is set by Bios.Apply right before xemu starts
         ClearFirstRunState();
     }
 
@@ -400,28 +388,9 @@ static class Launcher
               "It is usually named xbox_hdd.qcow2.");
         Check(eeprom, "EEPROM", true, n => n == 256,
               "An Xbox EEPROM file is exactly 256 bytes. It is usually named eeprom.bin.");
-        Check(bios, "BIOS", false, n => n == 256 * 1024 || n == 1024 * 1024,
-              "An Xbox BIOS file is 256 KB or 1 MB.");
-        Check(mcpx, "MCPX boot ROM", false, n => n == 512,
-              "An MCPX boot ROM file is exactly 512 bytes.");
-        if (!Bios.OxosAvailable &&
-            ((string.IsNullOrEmpty(bios) && !HasBundled(BundledBios)) ||
-             (string.IsNullOrEmpty(mcpx) && !HasBundled(BundledMcpx)))) {
-            throw new InvalidOperationException(
-                "This folder has no BIOS and MCPX boot ROM yet.\n\n" +
-                "Choose your own BIOS and MCPX files, or add the content pack first.");
-        }
-
+        // XBemu runs OXOS only: a BIOS or MCPX given here is not used
         CopyFile(hdd, hddTarget, progress);
         File.Copy(eeprom, eepromTarget, true);
-        if (!string.IsNullOrEmpty(bios)) {
-            File.Copy(bios, Path.Combine(systemDir, "imported_bios.bin"), true);
-            SetTomlPath("flashrom_path", "imported_bios.bin");
-        }
-        if (!string.IsNullOrEmpty(mcpx)) {
-            File.Copy(mcpx, Path.Combine(systemDir, "imported_mcpx.bin"), true);
-            SetTomlPath("bootrom_path", "imported_mcpx.bin");
-        }
         ClearFirstRunState();
     }
 
@@ -1022,11 +991,9 @@ static class Updater
 // --- OXOS BIOS (the default) ---
 //
 // XBemu runs OXOS, the open-source Xbox BIOS (github.com/kooscode/oxos,
-// GPL-2.0), unless the player picks the stock BIOS in xemu: Machine > BIOS.
-// xemu writes system\bios-choice.txt ("oxos" or "stock") and restarts through
-// this launcher. With no choice written yet it is OXOS, except in a copy moved
-// from Black Arrow Online that has its stock BIOS (system\update-source.txt):
-// Black Arrow freezes on OXOS, so those players keep what they had.
+// GPL-2.0), and nothing else: there is no stock BIOS option. A copy moved
+// from Black Arrow Online switches to OXOS too (its old BIOS files stay in
+// system\ but are not used).
 // Each package names the OXOS version we tested in system\oxos.txt (tag, file,
 // zip, sha256). Here, before xemu starts:
 //   - OXOS chosen: the tested version comes with the package in system\bios\;
@@ -1035,10 +1002,8 @@ static class Updater
 //     from which only that .bin is taken), checked against the SHA-256 and
 //     kept in system\bios\. xemu then uses it with no MCPX.
 //     A new package with a newer oxos.txt is how the BIOS updates.
-//   - Stock chosen: the bundled BIOS and MCPX come back. A BIOS the player
-//     imported is never touched.
 // The last two OXOS files are kept; the newest one already here is used
-// when a download fails, else the stock BIOS that time.
+// when a download fails.
 static class Bios
 {
     const string Repo = "https://github.com/kooscode/oxos/releases/download/";
@@ -1054,16 +1019,6 @@ static class Bios
     }
 
     static string Sys(string name) { return Path.Combine(Launcher.systemDir, name); }
-
-    public static string Choice()
-    {
-        try {
-            return File.ReadAllText(Sys("bios-choice.txt")).Trim().ToLowerInvariant();
-        } catch (IOException) {
-            bool moved = File.Exists(Sys("update-source.txt"));
-            return moved && Launcher.HasStockBios ? "stock" : "oxos";
-        }
-    }
 
     // Whether OXOS can be used: this package names a tested version
     public static bool OxosAvailable
@@ -1159,44 +1114,12 @@ static class Bios
         return path != null && Regex.IsMatch(path, @"^bios[\\/]oxos-", RegexOptions.IgnoreCase);
     }
 
-    // The BIOS and MCPX in use before OXOS (the bundled or an imported
-    // one), saved when OXOS is first switched on
-    static void UseStock()
-    {
-        if (!IsOxos(Launcher.TomlPath("flashrom_path"))) {
-            return;
-        }
-        if (!Launcher.HasStockBios && !File.Exists(Sys("bios-before.txt"))) {
-            // XBemu ships no stock BIOS: stay on OXOS
-            Log("bios: no stock BIOS in this folder, staying on OXOS");
-            return;
-        }
-        string flash = Launcher.Bundled("bios"), mcpx = Launcher.Bundled("mcpx");
-        try {
-            string[] before = File.ReadAllLines(Sys("bios-before.txt"));
-            if (before.Length >= 2 && before[0].Length > 0 && !IsOxos(before[0]) &&
-                File.Exists(Sys(before[0]))) {
-                flash = before[0];
-                mcpx = before[1].Length > 0 ? before[1] : mcpx;
-            }
-        } catch (IOException) {
-        }
-        Launcher.SetSysFile("flashrom_path", flash);
-        Launcher.SetSysFile("bootrom_path", mcpx);
-        Log("bios: back to " + flash);
-    }
-
     public static void Apply()
     {
         try {
-            if (Choice() != "oxos") {
-                UseStock();
-                return;
-            }
             var pin = Pin();
             if (pin == null) {
-                Log("bios: this package names no OXOS version (oxos.txt), stock BIOS");
-                UseStock();
+                Log("bios: this package names no OXOS version (oxos.txt)");
                 return;
             }
             string dir = Sys("bios");
@@ -1214,7 +1137,7 @@ static class Bios
                     File.Move(target + ".part", target);
                 } else {
                     // Offline, or the release changed: the newest other
-                    // OXOS already here, else stock this time. A damaged
+                    // OXOS already here. A damaged
                     // copy of this version is not used.
                     if (File.Exists(target)) {
                         File.Delete(target);
@@ -1222,8 +1145,7 @@ static class Bios
                     string previous = Directory.GetFiles(dir, "oxos-*.bin")
                         .OrderByDescending(f => File.GetLastWriteTimeUtc(f)).FirstOrDefault();
                     if (previous == null) {
-                        Log("bios: OXOS " + pin["tag"] + " could not be downloaded, stock BIOS this time");
-                        UseStock();
+                        Log("bios: OXOS " + pin["tag"] + " could not be downloaded and none is here");
                         return;
                     }
                     target = previous;
@@ -1238,11 +1160,6 @@ static class Bios
                                    StringComparison.OrdinalIgnoreCase)) {
                     File.Delete(old);
                 }
-            }
-            string current = Launcher.TomlPath("flashrom_path");
-            if (!IsOxos(current)) {
-                File.WriteAllLines(Sys("bios-before.txt"), new[] {
-                    current ?? "", Launcher.TomlPath("bootrom_path") ?? "" });
             }
             string rel = "bios\\" + name;
             if (Launcher.TomlPath("flashrom_path") != rel) {

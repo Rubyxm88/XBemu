@@ -484,56 +484,16 @@ static void OverlayMenu()
 
 // Machine: the console itself (pause, snapshots, settings, power)
 #if defined(_WIN32)
-// Machine > BIOS: OXOS, the open-source Xbox BIOS XBemu runs by default, or
-// a stock BIOS the player added. The launcher reads system/bios-choice.txt
-// when it starts xemu, uses the OXOS version the package names
-// (system/oxos.txt) and sets the BIOS.
-static std::string BiosFile(const char *name)
-{
-    gchar *p = g_build_filename(xemu_settings_get_base_path(), name, NULL);
-    std::string r = p;
-    g_free(p);
-    return r;
-}
-
-static bool UsingOxos()
-{
-    const char *flash = g_config.sys.files.flashrom_path;
-    return flash && (g_str_has_prefix(flash, "bios\\oxos-") ||
-                     g_str_has_prefix(flash, "bios/oxos-"));
-}
-
-// The launcher's stock files: the ones a copy moved from Black Arrow Online
-// has, or the player's own
-static bool StockBiosPresent()
-{
-    return g_file_test(BiosFile("Complex_4627v1.03.bin").c_str(),
-                       G_FILE_TEST_EXISTS) &&
-           g_file_test(BiosFile("mcpx.bin").c_str(), G_FILE_TEST_EXISTS);
-}
-
-static std::string ReadBiosChoice()
-{
-    gchar *text = NULL;
-    // No choice made yet: what the launcher set up (OXOS, or the stock BIOS
-    // of a moved copy)
-    std::string r = UsingOxos() ? "oxos" : "stock";
-    if (g_file_get_contents(BiosFile("bios-choice.txt").c_str(), &text, NULL,
-                            NULL)) {
-        gchar *lower = g_ascii_strdown(text, -1);
-        r = g_strstrip(lower);
-        g_free(lower);
-        g_free(text);
-    }
-    return r == "oxos" ? r : "stock";
-}
-
-// The OXOS version this package names, e.g. "v0.4.0", or empty
+// Machine > BIOS: shows OXOS, the open-source Xbox BIOS XBemu runs. There is
+// no other choice; the launcher sets it before xemu starts, using the version
+// the package names (system/oxos.txt).
 static std::string OxosTag()
 {
+    gchar *path = g_build_filename(xemu_settings_get_base_path(), "oxos.txt",
+                                   NULL);
     gchar *text = NULL;
     std::string tag;
-    if (g_file_get_contents(BiosFile("oxos.txt").c_str(), &text, NULL, NULL)) {
+    if (g_file_get_contents(path, &text, NULL, NULL)) {
         gchar **lines = g_strsplit(text, "\n", -1);
         for (gchar **l = lines; *l; l++) {
             g_strstrip(*l);
@@ -544,67 +504,23 @@ static std::string OxosTag()
         g_strfreev(lines);
         g_free(text);
     }
+    g_free(path);
     return tag;
 }
 
 static void BiosMenu()
 {
-    static std::string choice, tag, error;
-    static bool loaded;
-    if (!loaded) {
-        loaded = true;
-        choice = ReadBiosChoice();
-        tag = OxosTag();
-    }
-    if (tag.empty() && !UsingOxos()) {
-        return;  // This package names no OXOS version
+    static std::string label;
+    if (label.empty()) {
+        std::string tag = OxosTag();
+        label = tag.empty() ? "OXOS" : "OXOS " + tag;
     }
     if (!ImGui::BeginMenu("BIOS")) {
         return;
     }
-    std::string oxos = "OXOS " + tag;
-    const char *pick = NULL;
-    if (ImGui::MenuItem(oxos.c_str(), NULL, choice == "oxos")) {
-        pick = "oxos";
-    }
+    ImGui::MenuItem(label.c_str(), NULL, true, false);
     MenuItemHelp("OXOS, the open-source Xbox BIOS (github.com/kooscode/oxos). "
                  "It comes with XBemu. Some disc games freeze on it.");
-    bool have_stock = StockBiosPresent();
-    if (ImGui::MenuItem("Stock BIOS", NULL, choice == "stock",
-                        have_stock || choice == "stock")) {
-        pick = "stock";
-    }
-    MenuItemHelp(have_stock ?
-                 "Your own Xbox BIOS and MCPX boot ROM, in the system folder." :
-                 "Needs your own Xbox BIOS (Complex_4627v1.03.bin) and MCPX "
-                 "boot ROM (mcpx.bin) in the system folder. XBemu does not "
-                 "include them.");
-    if (pick && choice != pick) {
-        GError *err = NULL;
-        if (g_file_set_contents(BiosFile("bios-choice.txt").c_str(), pick, -1,
-                                &err)) {
-            choice = pick;
-            fprintf(stderr, "bios: %s chosen\n", pick);
-        } else {
-            error = err->message;
-            g_error_free(err);
-        }
-    }
-    bool want_oxos = choice == "oxos";
-    if (want_oxos != UsingOxos()) {
-        ImGui::Separator();
-        if (ImGui::MenuItem("Restart to Apply")) {
-            xemu_settings_save();
-            if (StartLauncherAfterExit("--noupdate", &error)) {
-                ActionShutdown();
-            }
-        }
-        MenuItemHelp("Closes and opens XBemu again with the "
-                     "chosen BIOS.");
-    }
-    if (!error.empty()) {
-        ImGui::TextDisabled("%s", error.c_str());
-    }
     ImGui::EndMenu();
 }
 #endif
