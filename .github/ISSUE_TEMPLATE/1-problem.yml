@@ -1,0 +1,88 @@
+name: Problem with XBemu
+description: Something in XBemu does not work (setup, dashboard, connection, graphics, sound, controller, updates...)
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! Before you send it:
+        - Are you on the newest build? It shows at the right of XBemu's menu bar. Help > Versions & Updates lists every build.
+        - For "Xbox Live not found" or sign-in problems, run XB Live > Connection Check and fix what it marks FIX or WARN (a VPN is the most common cause).
+        - Look for the same problem in the [open issues](https://github.com/Rubyxm88/XBemu/issues).
+
+        **Never attach** `eeprom.bin` or `xbox_hdd.qcow2`, and never write your xb.live password here. They belong to your console and your account.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Where is the problem?
+      options:
+        - First setup or starting XBemu
+        - XBL Dashboard
+        - Xbox Live / XB Online connection
+        - Graphics or performance (lag, stutter, freezes)
+        - Sound
+        - Controller, keyboard or mouse
+        - Updates (the update window, Versions & Updates)
+        - Something else
+    validations:
+      required: true
+  - type: dropdown
+    id: system
+    attributes:
+      label: Your computer
+      options:
+        - Windows
+        - Mac (Apple Silicon)
+        - Mac (Intel)
+        - Linux
+        - Steam Deck
+    validations:
+      required: true
+  - type: input
+    id: build
+    attributes:
+      label: XBemu build
+      description: At the right of the menu bar, or Help > About. Say if you are on Beta.
+      placeholder: v0.1 build 1 (Stable)
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: |
+        What you did, step by step, and what went wrong. A screenshot (F12) or a short video helps a lot.
+
+        Tip: drag image files into this box to attach them.
+      placeholder: |
+        1. Started XBemu
+        2. Played Halo 2 online for about 10 minutes
+        3. The picture froze, the sound kept playing
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What should have happened?
+    validations:
+      required: true
+  - type: textarea
+    id: pc
+    attributes:
+      label: Computer details
+      description: "Processor, graphics card and how much memory. Windows: Settings > System > About. Mac: Apple menu > About This Mac."
+      placeholder: |
+        CPU: AMD Ryzen 5 5600X
+        GPU: NVIDIA GeForce RTX 3060
+        RAM: 16 GB
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: |
+        Attach what XBemu saved (drag the files in):
+        - Windows: `system\xemu.log`, and freeze reports in `system\logs` (Troubleshoot > Open Logs Folder)
+        - Mac and Linux: run **XBemu Report** (in Applications, or your applications menu) and attach the file it makes
+        - Lag spikes: Troubleshoot > Record Diagnostics Log, play, press F9 right after each spike, then attach the log
+
+        Logs hold your PC's details and frame times, not your account.

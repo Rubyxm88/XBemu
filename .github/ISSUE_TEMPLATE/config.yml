@@ -1,5 +1,11 @@
 blank_issues_enabled: false
 contact_links:
-  - name: xemu Discord Server
-    url: https://discord.gg/ayyjsuM
-    about: Please ask and answer questions here.
+  - name: How to set up and use XBemu
+    url: https://github.com/Rubyxm88/XBemu#readme
+    about: First setup, the menus, updates and fixes for common problems. Also in the app under Help > XBemu Guide.
+  - name: Download XBemu
+    url: https://github.com/Rubyxm88/XBemu/releases/latest
+    about: The newest build for Windows, Mac and Linux.
+  - name: Xbox Live account or XB Online server
+    url: https://xb.live
+    about: Account, sign-in code and server problems belong to XB Online, not XBemu.

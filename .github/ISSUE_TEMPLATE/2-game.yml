@@ -1,0 +1,70 @@
+name: Problem with one game
+description: A game does not start, freezes, or looks or sounds wrong
+title: "Game name: short description"
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! Some disc games freeze on their loading screen on OXOS, the open-source BIOS XBemu runs. If a game never gets past its loading screen, say so below, that helps us keep a list.
+
+        **Never attach** `eeprom.bin` or `xbox_hdd.qcow2`, game files or disc images.
+  - type: input
+    id: game
+    attributes:
+      label: Game
+      description: Name, region and version if you know them.
+      placeholder: Halo 2, NTSC, with the latest title update
+    validations:
+      required: true
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What goes wrong?
+      options:
+        - Does not start, or freezes on its loading screen
+        - Freezes or crashes while playing
+        - Graphics look wrong
+        - Sound is wrong
+        - Slow or stutters
+        - Online play (Xbox Live) does not work
+        - Something else
+    validations:
+      required: true
+  - type: dropdown
+    id: system
+    attributes:
+      label: Your computer
+      options:
+        - Windows
+        - Mac (Apple Silicon)
+        - Mac (Intel)
+        - Linux
+        - Steam Deck
+    validations:
+      required: true
+  - type: input
+    id: build
+    attributes:
+      label: XBemu build
+      description: At the right of the menu bar, or Help > About. Say if you are on Beta.
+      placeholder: v0.1 build 1 (Stable)
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: |
+        Where in the game, what you did, and what went wrong. Screenshots (F12) help a lot; drag them into this box.
+      placeholder: |
+        Started the game from the XBL Dashboard's Disc tile. The intro plays, then the screen stays black.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: |
+        - Windows: `system\xemu.log`, and freeze reports in `system\logs` (Troubleshoot > Open Logs Folder)
+        - Mac and Linux: run **XBemu Report** and attach the file it makes
