@@ -631,6 +631,37 @@ jobs:
         (cd full && 7z a -tzip -bso0 "../$full" XBemu)
         ls -l "$full"
         echo "FULL_ZIP=$full" >> "$GITHUB_ENV"
+    # The Windows installer: the same folder as the full zip, installed for
+    # the player only, with Start menu entries and an uninstaller
+    - name: Make the installer
+      if: contains(needs.prepare.outputs.systems, 'windows')
+      shell: pwsh
+      run: |
+        $ErrorActionPreference = 'Stop'
+        # Inno Setup 6.7.4 from its GitHub release, checked, installed
+        # portably: the version the installer was tested with
+        $is = "innosetup-6.7.4.exe"
+        Invoke-WebRequest -UseBasicParsing -OutFile $is `
+            "https://github.com/jrsoftware/issrc/releases/download/is-6_7_4/$is"
+        $hash = (Get-FileHash $is -Algorithm SHA256).Hash
+        if ($hash -ne 'A549929319F9120716677C685535CA4671E4B937B5FDC87E2585F32D8EB30E8C') {
+          throw "Inno Setup download does not match its checksum ($hash)"
+        }
+        $isdir = "$env:RUNNER_TEMP\innosetup"
+        Start-Process ".\$is" -Wait -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES',
+            '/NORESTART', '/CURRENTUSER', '/PORTABLE=1', "/DIR=$isdir"
+        $iscc = "$isdir\ISCC.exe"
+        if (-not (Test-Path $iscc)) { throw "Inno Setup did not install" }
+        $build = if ($env:BUILD) { $env:BUILD } else { 'test' }
+        $label = if ($env:LABEL) { $env:LABEL } else { 'test build' }
+        $release = if ($env:RELEASE_LINE) { $env:RELEASE_LINE } else { '0.1' }
+        $num = if ($env:BUILD) { $env:BUILD } else { '0' }
+        & $iscc /Q "/DBuild=$build" "/DLabel=$label" "/DRelease=$release" "/DVersionNumber=$release.$num.0" `
+            "/DSourceDir=$PWD\full\XBemu" "/DOutputDir=$PWD" xbemu\package\installer.iss
+        if ($LASTEXITCODE -ne 0) { throw "ISCC failed ($LASTEXITCODE)" }
+        $setup = "XBemu-win-$build-setup.exe"
+        Get-Item $setup | Select-Object Name, Length
+        "SETUP_EXE=$setup" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
     # A sub build without Windows: the newest release's Windows files, so
     # Windows players see no new build
     - name: Copy the Windows files of the build before
@@ -640,11 +671,15 @@ jobs:
         set -euo pipefail
         trap 'echo "::error::line $LINENO: $BASH_COMMAND"' ERR
         gh release download "$PREV_TAG" --pattern version.txt --pattern XBemu-update.zip \
-            --pattern 'XBemu-win-*-full.zip'
+            --pattern 'XBemu-win-*-full.zip' --pattern 'XBemu-win-*-setup.exe'
         mv src/*.tar.zst "XBemu-source-$TAG.tar.zst"
         full=$(ls XBemu-win-*-full.zip 2>/dev/null | head -n 1 || true)
         if [ -n "$full" ]; then
           echo "FULL_ZIP=$full" >> "$GITHUB_ENV"
+        fi
+        setup=$(ls XBemu-win-*-setup.exe 2>/dev/null | head -n 1 || true)
+        if [ -n "$setup" ]; then
+          echo "SETUP_EXE=$setup" >> "$GITHUB_ENV"
         fi
         cat version.txt
     - name: Write the draft's notes
@@ -666,7 +701,8 @@ jobs:
         trap 'echo "::error::line $LINENO: $BASH_COMMAND"' ERR
         # Mac and Linux add their files later and write the notes again
         IMAGES_REF=$COMMIT bash xbemu/tools/release-notes.sh version.txt meta/changes.md \
-            XBemu-update.zip version.txt ${FULL_ZIP:+"$FULL_ZIP"} "XBemu-source-$TAG.tar.zst" > notes.md
+            XBemu-update.zip version.txt ${SETUP_EXE:+"$SETUP_EXE"} ${FULL_ZIP:+"$FULL_ZIP"} \
+            "XBemu-source-$TAG.tar.zst" > notes.md
         cat notes.md
     - name: Keep the test build
       if: needs.prepare.outputs.publish != 'true' && needs.prepare.outputs.draft != 'true'
@@ -676,6 +712,7 @@ jobs:
         path: |
           XBemu-update.zip
           XBemu-win-*-full.zip
+          XBemu-win-*-setup.exe
           version.txt
           notes.md
         compression-level: 0
@@ -694,6 +731,9 @@ jobs:
         full=()
         if [ -n "${FULL_ZIP:-}" ]; then
           full=("$FULL_ZIP")
+        fi
+        if [ -n "${SETUP_EXE:-}" ]; then
+          full+=("$SETUP_EXE")
         fi
         if ! out=$(gh release create "$TAG" --target "$COMMIT" "${kind[@]}" \
             --title "$title" --notes-file notes.md \

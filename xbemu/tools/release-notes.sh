@@ -43,6 +43,7 @@ pick() {
 link() { printf '[%s](%s/%s)' "$1" "$dl" "$1"; }
 
 win_full=$(pick 'XBemu-win-*-full.zip')
+win_setup=$(pick 'XBemu-win-*-setup.exe')
 mac_full=$(pick 'XBemu-mac-*-full.zip')
 linux_full=$(pick 'XBemu-linux-*-full.tar.gz')
 source=$(pick 'XBemu-source-*.tar.zst')
@@ -61,21 +62,44 @@ fi
 
 echo "## Download"
 echo
-if [ -n "$win_full$mac_full$linux_full" ]; then
+if [ -n "$win_setup$win_full$mac_full$linux_full" ]; then
     echo "**New to XBemu?** Download **one** file, the one for your computer. It has everything to start: the app, the open-source OXOS BIOS, the XBL Dashboard installer and a new blank console. No Microsoft files."
     echo
     echo "| Your computer | Download | Then |"
     echo "|---|---|---|"
-    if [ -n "$win_full" ]; then
+    if [ -n "$win_setup" ]; then
+        echo "| **Windows** 10 or 11 | $(link "$win_setup") | Run it and click Install (no admin needed). XBemu starts; copy your game discs (.iso) into its games folder (Start menu > XBemu Games folder) |"
+    elif [ -n "$win_full" ]; then
         echo "| **Windows** 10 or 11 | $(link "$win_full") | Unzip it anywhere, copy your game discs (.iso) into \`games\`, double-click **XBemu** |"
     fi
     if [ -n "$mac_full" ]; then
-        echo "| **Mac**, Apple Silicon (macOS 14+) or Intel (macOS 11+) | $(link "$mac_full") | Unzip it in Downloads, then paste the one Terminal line from its README.txt |"
+        echo "| **Mac**, Apple Silicon (macOS 14+) or Intel (macOS 11+) | $(link "$mac_full") | Unzip it in Downloads (double-click it if your browser did not), then paste the Mac line below into Terminal |"
     fi
     if [ -n "$linux_full" ]; then
-        echo "| **Linux** or Steam Deck (x86_64) | $(link "$linux_full") | Extract it, open a terminal in the XBemu folder, run \`bash setup.sh\` |"
+        echo "| **Linux** or Steam Deck (x86_64) | $(link "$linux_full") | Paste the Linux line below into a terminal (Steam Deck: Konsole, in Desktop Mode) |"
     fi
     echo
+    # The lines from the Mac and Linux READMEs: each installs and starts XBemu
+    if [ -n "$mac_full" ]; then
+        echo "**Mac line** (Cmd+Space, type Terminal, press Return, paste with Cmd+V, press Return). It installs XBemu and starts it:"
+        echo
+        echo '```'
+        echo 'bash "$(ls -td ~/Downloads/XBemu*/ | head -n 1)setup.sh"'
+        echo '```'
+        echo
+    fi
+    if [ -n "$linux_full" ]; then
+        echo "**Linux line** (paste with Ctrl+Shift+V, press Enter). It unpacks the download, installs XBemu and starts it:"
+        echo
+        echo '```'
+        echo 'cd ~/Downloads && tar -xzf "$(ls -t XBemu-linux-*-full.tar.gz | head -n 1)" && bash XBemu/setup.sh'
+        echo '```'
+        echo
+    fi
+    if [ -n "$win_setup" ] && [ -n "$win_full" ]; then
+        echo "Windows without installing: $(link "$win_full") is the same XBemu in a folder. Unzip it anywhere and double-click **XBemu**."
+        echo
+    fi
 fi
 echo "**Already have XBemu?** Don't download anything. Start XBemu as usual: it offers this build and installs it in a few seconds. Your console, Xbox Live sign-in, saves, settings and games are not touched."
 echo

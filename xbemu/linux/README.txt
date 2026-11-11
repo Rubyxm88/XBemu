@@ -145,13 +145,22 @@ system/    your console: settings, hard disk, logs
 games/     your games
 
 To start over with a new console (your current one, with its Xbox Live
-account and saves, is lost), run setup.sh like this instead:
+account and saves, is lost), quit XBemu and type this in a terminal:
 
-  bash setup.sh --start-over
+  bash ~/.local/share/XBemu/setup.sh --start-over
 
-To remove the app and its menu entries (your console and games stay):
 
-  bash setup.sh --uninstall
+UNINSTALL
+---------
+
+Right-click XBemu in your applications menu and choose Uninstall XBemu
+(on menus that show it), or type this in a terminal:
+
+  bash ~/.local/share/XBemu/setup.sh --uninstall
+
+It removes the app and its menu entries. Your console and games stay in
+~/.local/share/XBemu, so installing again finds them; delete that folder
+too to remove everything.
 
 
 HOSTING

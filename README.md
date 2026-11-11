@@ -6,22 +6,35 @@ with a launcher that sets up a new console for you, the open-source
 [OXOS](https://github.com/kooscode/oxos) BIOS and the XBL Dashboard.
 No Microsoft files are included.
 
-## Get started (Windows)
+## Get started
 
-1. Download `XBemu-win-<build>-full.zip` from the
-   [latest release](../../releases/latest) and unzip it anywhere.
-2. Copy your game disc images (`.iso`) into the `games` folder.
-3. Double-click **XBemu** and click **Set up my console**.
-4. The XBL Dashboard installs itself (about a minute, once), then opens.
-   Sign in with your xb.live account.
-5. Menu: **Play > Load &lt;game&gt;** puts the disc in the tray. Start it
+Go to the [latest release](../../releases/latest) and download the one
+file for your computer from its **Download** table:
+
+- **Windows:** `XBemu-win-<build>-setup.exe`. Run it and click Install (no
+  admin needed). It adds XBemu to the Start menu and to Settings > Apps,
+  where you can uninstall it. Prefer no install? `XBemu-win-<build>-full.zip`
+  is the same XBemu in a folder: unzip it anywhere.
+- **Mac:** `XBemu-mac-<build>-full.zip`, then paste one line into Terminal.
+- **Linux and Steam Deck:** `XBemu-linux-<build>-full.tar.gz`, then paste
+  one line into a terminal.
+
+The Mac and Linux lines are on the release page and in the READMEs
+([Mac](xbemu/mac/README.txt), [Linux](xbemu/linux/README.txt)); each one
+installs XBemu and starts it. XBemu is a separate install with its own
+console: a Black Arrow Online install on the same computer is not touched.
+
+Then:
+
+1. Click **Set up my console** (Windows asks once). The XBL Dashboard
+   installs itself (about a minute, once), then opens. Sign in with your
+   xb.live account.
+2. Copy your game disc images (`.iso`) into XBemu's games folder.
+3. Menu: **Play > Load &lt;game&gt;** puts the disc in the tray. Start it
    from the dashboard.
 
 The README in the package, and **Help > XBemu Guide** in the app, cover the
 menus, accounts, the connection check and troubleshooting.
-
-Mac and Linux: each release has `XBemu-mac-update.zip` and
-`XBemu-linux-update.tar.gz` with a `setup.sh`.
 
 ## Builds and channels
 

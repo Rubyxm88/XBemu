@@ -8,8 +8,12 @@ Download and release notes: https://github.com/Rubyxm88/XBemu/releases/latest
 
 FIRST TIME
 ----------
+Installed with XBemu-win-...-setup.exe: XBemu is in the Start menu, and
+"XBemu Games folder" next to it opens the games folder. From the zip: the
+games folder and "XBemu" are in the folder you unzipped.
+
 1. Copy your game disc images (.iso) into the "games" folder.
-2. Double-click "XBemu". A setup window appears once: click
+2. Start "XBemu". A setup window appears once: click
    "Set up my console". It makes a brand new console on OXOS.
 3. The XBL Dashboard installs itself (about a minute, one time only), then
    opens. Sign in with your xb.live account.
@@ -162,6 +166,13 @@ STARTING OVER
 -------------
 "system\Start over.bat" removes the console in this folder. The next start
 asks again whether you want a clean start or your own files.
+
+
+UNINSTALL
+---------
+Installed with the setup: Windows Settings > Apps > Installed apps, XBemu,
+Uninstall. It asks whether to delete your console and games too; choose No
+to keep them for a later install. From the zip: delete the folder.
 
 
 DO NOT SHARE

@@ -39,6 +39,10 @@ Release-Channel: beta
 | `Release-Systems: mac linux` | With a channel: builds only those systems; the others keep the newest release's files |
 | `Change: ...` | A line of its own in the release notes ("What changed") |
 
+The release commit must change at least one file outside `*.md`,
+`xbemu/docs/` and `xbemu/release-fixes/`: a push that changes nothing else
+(an empty commit included) does not start the workflow at all.
+
 The same can be done by hand: Actions > XBemu > Run workflow, with a
 channel. N is the next build number (the newest release + 1), and the title
 is "XBemu v0.1 build N" ("... beta" for a beta).

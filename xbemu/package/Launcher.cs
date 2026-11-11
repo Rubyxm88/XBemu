@@ -103,6 +103,7 @@ static class Launcher
 
         Updater.CleanUp();
         RefreshIcon();
+        InstalledApp.ShowVersion(Updater.Installed());
 
         // xemu's "Restart to Apply" after a BIOS change: start once it closed
         int waitPid;
@@ -999,6 +1000,44 @@ static class Updater
         PruneBackups();
     }
 
+}
+
+// A copy put in by the installer (XBemu-win-N-setup.exe) has an entry in
+// Settings > Apps. XBemu updates itself, so the build shown there is set
+// again from version.txt on each start. A portable copy has no entry and is
+// left alone.
+static class InstalledApp
+{
+    const string Key = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\" +
+                       "{EF0E9C7E-B02C-4FC8-BB98-252EA2802979}_is1";
+
+    public static void ShowVersion(UpdateInfo installed)
+    {
+        if (installed.Build <= 0) {
+            return;
+        }
+        try {
+            using (var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(Key, true)) {
+                if (key == null) {
+                    return;
+                }
+                string location = key.GetValue("InstallLocation") as string ?? "";
+                string here = AppDomain.CurrentDomain.BaseDirectory;
+                if (location.Length == 0 ||
+                    !string.Equals(Path.GetFullPath(location).TrimEnd('\\'),
+                                   Path.GetFullPath(here).TrimEnd('\\'),
+                                   StringComparison.OrdinalIgnoreCase)) {
+                    return;
+                }
+                string name = installed.Name;
+                if (!string.Equals(key.GetValue("DisplayVersion") as string, name)) {
+                    key.SetValue("DisplayVersion", name);
+                }
+            }
+        } catch (Exception) {
+            // Only what Settings > Apps shows
+        }
+    }
 }
 
 // --- OXOS BIOS (the default) ---

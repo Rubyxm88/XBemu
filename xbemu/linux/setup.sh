@@ -9,6 +9,10 @@
 #                                   this folder and opens it again
 #   bash setup.sh --uninstall       removes the app and its menu entries;
 #                                   the console and games stay
+#   bash setup.sh --uninstall --ask the same, asking first in a window: what
+#                                   "Uninstall XBemu" in the menu entry's
+#                                   right-click menu runs (a copy of this
+#                                   script is kept in the XBemu folder)
 #
 # Everything goes to ~/.local/share/XBemu (XDG_DATA_HOME when
 # set), laid out like the Windows package folder: app/ (the emulator with
@@ -328,6 +332,10 @@ REPORT
 # The applications menu entries and the icon
 install_menu() {
     mkdir -p "$menu" "$icons/256x256/apps"
+    # The menu's Uninstall XBemu runs this copy: the download may be gone
+    if ! [ "$here/setup.sh" -ef "$data/setup.sh" ]; then
+        install -m 755 "$here/setup.sh" "$data/setup.sh"
+    fi
     local icon=xbemu
     if [ -f "$app/usr/share/icons/hicolor/256x256/apps/xemu.png" ]; then
         cp "$app/usr/share/icons/hicolor/256x256/apps/xemu.png" \
@@ -351,6 +359,11 @@ Icon=$icon
 Terminal=false
 Categories=Game;Emulator;
 StartupWMClass=xemu
+Actions=uninstall;
+
+[Desktop Action uninstall]
+Name=Uninstall XBemu
+Exec=bash "$data/setup.sh" --uninstall --ask
 EOF
     cat > "$menu/xbemu-report.desktop" <<EOF
 [Desktop Entry]
@@ -416,13 +429,58 @@ if [ "${1:-}" = "--start-over" ]; then
     exit 0
 fi
 
+# A message in a window when there is no terminal (the menu's Uninstall
+# XBemu); kind is info, error or question (yes = success)
+window() {
+    local kind="$1" text="$2"
+    if command -v zenity >/dev/null 2>&1; then
+        case "$kind" in
+            question) zenity --question --title="XBemu" --width=420 --text="$text" 2>/dev/null ;;
+            error) zenity --error --title="XBemu" --width=420 --text="$text" 2>/dev/null ;;
+            *) zenity --info --title="XBemu" --width=420 --text="$text" 2>/dev/null ;;
+        esac
+    elif command -v kdialog >/dev/null 2>&1; then
+        case "$kind" in
+            question) kdialog --title "XBemu" --yesno "$text" 2>/dev/null ;;
+            error) kdialog --title "XBemu" --error "$text" 2>/dev/null ;;
+            *) kdialog --title "XBemu" --msgbox "$text" 2>/dev/null ;;
+        esac
+    else
+        # No dialog program: removing only takes the app away (the console
+        # stays), so go ahead and say so where possible
+        command -v notify-send >/dev/null 2>&1 && notify-send "XBemu" "$text" 2>/dev/null
+        return 0
+    fi
+}
+
 if [ "${1:-}" = "--uninstall" ]; then
-    running && fail "quit XBemu first."
+    ask=false
+    [ "${2:-}" = "--ask" ] && ask=true
+    if running; then
+        $ask && window error "Quit XBemu first, then choose Uninstall XBemu again."
+        fail "quit XBemu first."
+    fi
+    if $ask; then
+        window question "Uninstall XBemu?
+
+The app and its menu entries are removed. Your console (Xbox Live sign-in, saves, settings) and games stay in
+$data
+so installing XBemu again finds them." || exit 0
+    fi
     rm -rf "$app" "$data/report.sh"
     rm -f "$menu/xbemu.desktop" "$menu/xbemu-report.desktop" \
-        "$icons/256x256/apps/xbemu.png" "$data/xbemu.png"
+        "$icons/256x256/apps/xbemu.png" "$data/xbemu.png" "$data/setup.sh"
+    command -v update-desktop-database >/dev/null 2>&1 &&
+        update-desktop-database "$menu" >/dev/null 2>&1 || true
     echo "XBemu is removed. Your console and games are still in"
     echo "$data; delete that folder too to remove everything."
+    if $ask; then
+        window info "XBemu is removed.
+
+Your console and games are still in
+$data
+Delete that folder too to remove everything."
+    fi
     exit 0
 fi
 
