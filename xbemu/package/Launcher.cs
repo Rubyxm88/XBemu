@@ -168,7 +168,7 @@ static class Launcher
                 // What the offer at start would be, without installing
                 UpdateInfo update = Updater.Check();
                 Console.Out.WriteLine(update == null ? "No update." :
-                                      "Offer build " + update.Text + (update.IsBeta ? " (beta)" : "") +
+                                      "Offer " + update.Name + (update.IsBeta ? " (beta)" : "") +
                                       " from " + (update.Url.Length > 0 ? update.Url : "latest"));
                 return update == null ? 2 : 0;
             } else if (mode == "update") {
@@ -543,23 +543,28 @@ static class Launcher
     }
 }
 
-// A build is a whole number (26), a sub build of it (26.1, 26.2...) that
-// updates only some systems, or a beta of either (27.3.1) that only the beta
-// channel gets. version.txt keeps "build=26", which launchers before 26 read,
-// and adds "sub=1" and "beta=1"; the release tags are xbemu-1.1 and
-// xbemu-1.0.1. Code holds all three as one number, for comparing:
-// Build * 10000 + Sub * 100 + Beta (260100 for 26.1, 270301 for 27.3.1).
+// XBemu builds are "v0.1 build 7": version.txt says build=7, release=0.1
+// and channel=beta or stable, and the tag is xbemu-7. The build number goes
+// up with every release of either channel. The older numbering is still read
+// (Black Arrow Online copies): sub builds (26.1, "sub=1") and three-part
+// betas (27.3.1, "beta=1"). Code holds all three as one number, for
+// comparing: Build * 10000 + Sub * 100 + Beta (70000 for 7, 270301 for 27.3.1).
 class UpdateInfo
 {
     public int Build, Sub, Beta;
     public string Xemu = "", Date = "", Sha256 = "", Notes = "";
+    // The version line ("0.1") and channel ("stable", "beta" or "test")
+    public string Release = "", Channel = "";
     // Where its files are; empty for the newest build
     public string Url = "";
 
     public int Code { get { return Build > 0 ? Build * 10000 + Sub * 100 + Beta : 0; } }
-    public bool IsBeta { get { return Beta > 0; } }
-    // "26", "26.1" or "27.3.1"
+    // A beta: channel=beta, or an older three-part number (27.3.1)
+    public bool IsBeta { get { return Beta > 0 || Channel == "beta"; } }
+    // "7" ("26.1" or "27.3.1" for older builds)
     public string Text { get { return CodeText(Code); } }
+    // "v0.1 build 7", or "Build 7" without a version line
+    public string Name { get { return (Release.Length > 0 ? "v" + Release + " build " : "Build ") + Text; } }
 
     public static string CodeText(int code)
     {
@@ -635,6 +640,10 @@ static class Updater
                 if (info.Beta < 0 || info.Beta > 99) {
                     info.Beta = 0;
                 }
+            } else if (key == "release") {
+                info.Release = value;
+            } else if (key == "channel") {
+                info.Channel = value.ToLowerInvariant();
             } else if (key == "xemu") {
                 info.Xemu = value;
             } else if (key == "date") {
@@ -705,9 +714,8 @@ static class Updater
         }
     }
 
-    // Betas are pre-releases with a three-part tag (xbemu-1.0.1), so the
-    // releases page never calls one the latest. BAO_RELEASES_API points this
-    // somewhere else, for testing.
+    // Betas are pre-releases (xbemu-7), so the releases page never calls one
+    // the latest. BAO_RELEASES_API points this somewhere else, for testing.
     const string ReleasesApi =
         "https://api.github.com/repos/Rubyxm88/XBemu/releases?per_page=30";
 
@@ -722,10 +730,15 @@ static class Updater
         using (var reader = new StreamReader(response.GetResponseStream())) {
             list = reader.ReadToEnd();
         }
+        // Each release: its tag, then (no objects in between) whether it is a
+        // draft and a pre-release. Older betas have a three-part tag.
         var codes = new List<int>();
-        foreach (Match m in Regex.Matches(list, @"""tag_name""\s*:\s*""xbemu-(\d+\.\d+\.\d+)""")) {
+        foreach (Match m in Regex.Matches(list,
+                     @"""tag_name""\s*:\s*""xbemu-([\d.]+)""[^{}]*?""draft""\s*:\s*(true|false)" +
+                     @"[^{}]*?""prerelease""\s*:\s*(true|false)")) {
             int code = UpdateInfo.CodeFromText(m.Groups[1].Value);
-            if (code % 100 != 0 && code > above && code != skipped) {
+            bool draft = m.Groups[2].Value == "true", pre = m.Groups[3].Value == "true";
+            if (code > 0 && !draft && (pre || code % 100 != 0) && code > above && code != skipped) {
                 codes.Add(code);
             }
         }
@@ -1268,12 +1281,12 @@ class UpdateForm : Form
         panel.SetBounds(24, 66, 512, 132);
         panel.BackColor = Theme.PanelBack;
         Controls.Add(panel);
-        Theme.AddLabel(panel, "Build " + update.Text + (update.IsBeta ? " (beta)" : "") +
+        Theme.AddLabel(panel, update.Name + (update.IsBeta ? " beta" : "") +
                               (update.Date.Length > 0 ? "  -  " + update.Date : ""),
                        18, 12, 476, 26, 12F, true, Theme.Green);
         Theme.AddLabel(panel, (update.Xemu.Length > 0 ? "Based on xemu " + update.Xemu + ".  " : "") +
                               "You have " +
-                              (installed.Build > 0 ? "build " + installed.Text : "an earlier build") + ".",
+                              (installed.Build > 0 ? installed.Name : "an earlier build") + ".",
                        18, 42, 476, 22, 9F, false, Theme.Dim);
         Theme.AddLabel(panel, (update.Notes.Length > 0 ? update.Notes + "\n" : "") +
                               "Your console, Xbox Live sign-in, saves, settings and games " +
@@ -1888,7 +1901,7 @@ class SetupForm : Form
         status = AddLabel(this, IdleStatus, Side + 2, 684, Inner - 140, 20, 8.5F, false, Dim);
         UpdateInfo installed = Updater.Installed();
         if (installed.Build > 0) {
-            Label build = AddLabel(this, "Build " + installed.Text, W - Side - 140, 684, 140, 20,
+            Label build = AddLabel(this, installed.Name, W - Side - 140, 684, 140, 20,
                                    8.5F, true, Dim);
             build.TextAlign = ContentAlignment.TopRight;
         }

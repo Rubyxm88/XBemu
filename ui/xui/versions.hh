@@ -20,7 +20,9 @@ struct ReleaseBuild {
     std::string title;
     std::string notes;   // first line of the release notes
     std::string broken;  // why it must not be installed, or empty
-    std::string systems; // a sub build's systems ("mac linux"), or empty
+    std::string systems; // a partial build's systems ("mac linux"), or empty
+    std::string release; // its version line ("0.1"), from the title
+    bool        beta;    // a pre-release: offered on Beta only
     // Patch notes, one line each; "## " starts a heading, two spaces a
     // line that goes on from the one before
     std::vector<std::string> changes;
@@ -71,10 +73,10 @@ void DrawBuildBadge();
 // Whether the player gets beta builds (update-channel.txt says "beta")
 bool BetaChannel();
 
-// "Build 27", a beta's own name, or "Test Build"
+// "v0.1 build 7", a test build's own name, or "Test Build"
 std::string InstalledBuildText();
 
-// The window title: "XBemu | Build 27 | xemu 0.8.139"
+// The window title: "XBemu | v0.1 build 7 | xemu 0.8.139"
 std::string WindowTitleText();
 
 #if defined(_WIN32)

@@ -1,0 +1,78 @@
+# Makes a beta build stable without building it again: the same files,
+# now the latest release, offered to everyone. Run it by hand (Actions >
+# XBemu promote > Run workflow) with the build number, such as 7.
+#
+# It runs in the "stable" environment, so it shows under Deployments and
+# waits for the same approval as a stable release.
+name: XBemu promote
+
+on:
+  workflow_dispatch:
+    inputs:
+      build:
+        description: The beta build number to make stable (7 for xbemu-7)
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: xbemu-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    name: Make build ${{ inputs.build }} stable
+    runs-on: ubuntu-latest
+    environment:
+      name: stable
+      url: ${{ github.server_url }}/${{ github.repository }}/releases/tag/xbemu-${{ inputs.build }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      BUILD: ${{ inputs.build }}
+    steps:
+    - name: Promote
+      run: |
+        set -euo pipefail
+        trap 'echo "::error::line $LINENO: $BASH_COMMAND"' ERR
+        if ! echo "$BUILD" | grep -Eq '^[0-9]+$'; then
+          echo "::error title=Not a build number::$BUILD (give the number only, such as 7)"
+          exit 1
+        fi
+        tag="xbemu-$BUILD"
+        info=$(gh release view "$tag" --json isDraft,isPrerelease,name,body)
+        if [ "$(echo "$info" | jq -r .isDraft)" = true ]; then
+          echo "::error title=Draft::$tag is a draft (withdrawn); publish it first"
+          exit 1
+        fi
+        if [ "$(echo "$info" | jq -r .isPrerelease)" != true ]; then
+          echo "::error title=Already stable::$tag is not a beta"
+          exit 1
+        fi
+        # A newer stable build would stop being the latest
+        newer=$(gh release list --limit 200 --json tagName,isDraft,isPrerelease \
+                --jq '.[] | select((.isDraft | not) and (.isPrerelease | not)) | .tagName' |
+                sed -n 's/^xbemu-\([0-9][0-9]*\)$/\1/p' | sort -n | tail -n 1)
+        if [ -n "$newer" ] && [ "$newer" -gt "$BUILD" ]; then
+          echo "::error title=Newer stable build::Build $newer is already stable and newer than $BUILD"
+          exit 1
+        fi
+
+        # The version files say channel=stable; the zips are unchanged, so
+        # their sha256 lines stay right
+        mkdir -p files
+        for f in version.txt mac-version.txt linux-version.txt; do
+          if gh release download "$tag" --pattern "$f" --dir files 2>/dev/null; then
+            sed -i 's/^channel=beta$/channel=stable/' "files/$f"
+            gh release upload "$tag" "files/$f" --clobber
+            echo "$f:"; cat "files/$f"
+          fi
+        done
+
+        # Title without " beta", and the beta paragraph out of the notes
+        title=$(echo "$info" | jq -r .name | sed 's/ beta$//')
+        echo "$info" | jq -r .body | sed '/^\*\*Beta build\.\*\*/{N;d;}' > notes.md
+        gh release edit "$tag" --prerelease=false --latest --title "$title" --notes-file notes.md
+        echo "$title is now the stable build."

@@ -26,24 +26,32 @@ name: XBemu release
 # A push to mac-build or linux-build runs everything without publishing: the
 # would-be release files are kept as downloads on the run's page (Artifacts).
 #
-# Sub builds: a head commit whose message has a line "Release-Sub: mac" (or
-# "mac linux", "windows"...) makes a sub build of the newest release, such as
-# 26.1 after 26, that builds only those systems. Its version files say
-# build=26 and sub=1 (launchers and apps before 26 read build=26 only), its
-# tag is xbemu-1.1, and it is marked latest, so it carries every system's
-# files: the systems it leaves out get the newest release's files, copied
-# unchanged, and see nothing new. Its notes say which systems it is for in a
-# "<!-- systems: mac -->" line, which the Versions window reads. The next push
-# without that line makes the next whole build (27).
+# Versions and builds: XBemu is "v0.1 build 7". The version line (0.1) is in
+# xbemu/VERSION; the build number goes up by one with every release, beta or
+# stable, and is the tag: xbemu-7. Its version files say build=7,
+# release=0.1 and channel=beta or channel=stable.
 #
-# Betas: a head commit with a line "Release-Channel: beta" makes a beta of the
-# newest release, such as 27.3.1 after 27.3 (then 27.3.2...), for players who
-# ticked "Get beta builds" in Versions & Updates. Its version files add
-# beta=1, its tag is xbemu-1.0.1, and it is published as a pre-release that
-# is never marked latest, so everyone else, and every launcher and app before
-# 27.3, sees nothing new. "Release-Sub:" in the same commit makes it a beta for
-# those systems only. The next push without the line makes the next sub or
-# whole build as usual. To withdraw a beta, turn it back into a draft.
+# Channels: a push publishes nothing unless its head commit has a line
+#   Release-Channel: beta     a beta: a pre-release, never "latest". Only
+#                             players on Beta (Help > Versions & Updates, or
+#                             the update window) are offered it.
+#   Release-Channel: stable   a stable build: the latest release, offered to
+#                             everyone.
+# (or the "channel" input when run by hand). Without it the run builds
+# everything and keeps the files as downloads on the run's page (Artifacts).
+# Publishing goes through the GitHub environment of the same name ("beta" or
+# "stable"), so each channel shows under Deployments, and protection rules
+# set on an environment (such as required reviewers on "stable") hold the
+# release until approved. A beta that proved itself becomes stable without a
+# new build: run "XBemu promote" (xbemu-promote.yml) with its build number.
+#
+# One system only: "Release-Systems: mac" (or "mac linux", "windows"...) in
+# the same commit builds only those systems; the others get the files of the
+# newest release of that channel (for a stable build: the newest stable),
+# copied unchanged with their version files, so they see nothing new. The
+# notes say which systems it is for in a "<!-- systems: mac -->" line, which
+# the Versions window reads. To withdraw a release, turn it back into a draft,
+# or add a line "Broken: why" to its notes (listed greyed out, not offered).
 
 on:
   push:
@@ -64,6 +72,11 @@ on:
         description: Make the draft test build for the latest xemu release now
         type: boolean
         default: false
+      channel:
+        description: Publish as (none builds without publishing)
+        type: choice
+        options: [none, beta, stable]
+        default: none
 
 permissions:
   contents: write
@@ -82,8 +95,8 @@ jobs:
       publish: ${{ steps.plan.outputs.publish }}
       draft: ${{ steps.plan.outputs.draft }}
       build: ${{ steps.plan.outputs.build }}
-      sub: ${{ steps.plan.outputs.sub }}
-      beta: ${{ steps.plan.outputs.beta }}
+      channel: ${{ steps.plan.outputs.channel }}
+      release_line: ${{ steps.plan.outputs.release_line }}
       label: ${{ steps.plan.outputs.label }}
       systems: ${{ steps.plan.outputs.systems }}
       prev_tag: ${{ steps.plan.outputs.prev_tag }}
@@ -113,8 +126,7 @@ jobs:
         git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
         # Files this repository replaces keep its version
         git config merge.ours.driver true
-        printf '%s merge=ours\n' README.md .github/workflows/ci.yml \
-            .github/workflows/bump-subproject-wraps.yml >> .git/info/attributes
+        printf '%s merge=ours\n' README.md >> .git/info/attributes
 
         git remote add upstream https://github.com/xemu-project/xemu.git
         git fetch --quiet --tags upstream master
@@ -160,7 +172,20 @@ jobs:
               git log --no-merges --format='- %s (%h)' "HEAD..$latest" | head -n 200 || true
             } > meta/xemu.md
             echo "Merging xemu $latest"
+            # XBemu has none of xemu's own workflows (they would publish to
+            # xemu's website and PPA): ones xemu changed come back as
+            # modify/delete conflicts, which are dropped again here
             if ! git merge --no-edit "$latest"; then
+              for f in $(git diff --name-only --diff-filter=U -- .github/workflows); do
+                if [ "$f" != .github/workflows/xbemu.yml ] && ! git cat-file -e "HEAD:$f" 2>/dev/null; then
+                  git rm --quiet "$f"
+                fi
+              done
+              if [ -z "$(git diff --name-only --diff-filter=U)" ]; then
+                git commit --quiet --no-edit
+              fi
+            fi
+            if [ -f .git/MERGE_HEAD ]; then
               files=$(git diff --name-only --diff-filter=U)
               title="Update to xemu $latest needs a manual merge"
               open=$(gh issue list --state open --search "\"$title\" in:title" \
@@ -183,8 +208,9 @@ jobs:
 
         version=$(git describe --tags --match 'v*' | cut -c 2-)
         # The toolchain image the xemu Windows build uses
-        tag=$({ grep -o -e '-gcc:sha-[0-9a-f]*' .github/workflows/build-windows.yml || true; } |
-              head -n 1)
+        # (from xemu's own workflow at the xemu release this build is on)
+        tag=$({ git show "$upstream:.github/workflows/build-windows.yml" 2>/dev/null |
+                grep -o -e '-gcc:sha-[0-9a-f]*' || true; } | head -n 1)
         image="xemu-win64-toolchain${tag:--gcc:sha-2881edd}"
         echo "mode=$mode" >> "$GITHUB_OUTPUT"
         echo "upstream=$upstream" >> "$GITHUB_OUTPUT"
@@ -213,13 +239,13 @@ jobs:
         UPSTREAM: ${{ steps.merge.outputs.upstream }}
         COMMIT: ${{ steps.merge.outputs.commit }}
         FORCE: ${{ inputs.force }}
+        CHANNEL_INPUT: ${{ inputs.channel }}
       run: |
         set -euo pipefail
         trap 'echo "::error::line $LINENO: $BASH_COMMAND"' ERR
         mkdir -p prev meta
         {
-          echo "sub=0"
-          echo "beta=0"
+          echo "channel="
           echo "systems=windows mac linux"
         } >> "$GITHUB_OUTPUT"
         if [ "$MODE" = none ]; then
@@ -242,55 +268,69 @@ jobs:
           exit 0
         fi
         echo "draft=false" >> "$GITHUB_OUTPUT"
-        # The newest release; its tag numbers this one (xbemu-1, xbemu-1.1)
-        prev_tag=$(gh release view --json tagName --jq .tagName 2>/dev/null || true)
-        gh release download ${prev_tag:+"$prev_tag"} --pattern version.txt --dir prev 2>/dev/null || true
+        # The version line, such as 0.1
+        release_line=$(tr -d ' \r\n' < xbemu/VERSION)
+        if ! echo "$release_line" | grep -Eq '^[0-9]+\.[0-9]+$'; then
+          echo "::error title=Bad xbemu/VERSION::It must hold a version such as 0.1, not \"$release_line\""
+          exit 1
+        fi
+        echo "release_line=$release_line" >> "$GITHUB_OUTPUT"
+
+        # "Release-Channel: beta" or "stable" in the head commit's message
+        # (or the channel input): publish to that channel; none builds only
+        channel=$(git log -1 --format=%B "$COMMIT" |
+                  sed -n 's/^Release-Channel:[[:space:]]*//Ip' | head -n 1 |
+                  tr 'A-Z' 'a-z' | xargs || true)
+        if [ -z "$channel" ] && [ -n "${CHANNEL_INPUT:-}" ] && [ "$CHANNEL_INPUT" != none ]; then
+          channel=$CHANNEL_INPUT
+        fi
+        case "$channel" in
+          ""|beta|stable) ;;
+          *) echo "::error title=Unknown Release-Channel::$channel (use beta or stable)"
+             exit 1 ;;
+        esac
+
+        # Every published release numbers the next one: the newest build of
+        # either channel. A partial build copies from the newest release of
+        # its own channel (a beta: the newest of either)
+        releases=$(gh release list --limit 200 --json tagName,isDraft,isPrerelease \
+                   --jq '.[] | select(.isDraft | not) | "\(.tagName) \(.isPrerelease)"' \
+                   2>/dev/null || true)
+        last_build=$(echo "$releases" | sed -n 's/^xbemu-\([0-9][0-9]*\) .*/\1/p' | sort -n | tail -n 1)
+        stable_build=$(echo "$releases" | sed -n 's/^xbemu-\([0-9][0-9]*\) false$/\1/p' | sort -n | tail -n 1)
+        if [ "$channel" = stable ]; then
+          prev_tag=${stable_build:+xbemu-$stable_build}
+        else
+          prev_tag=${last_build:+xbemu-$last_build}
+        fi
+        if [ -n "$prev_tag" ]; then
+          gh release download "$prev_tag" --pattern version.txt --dir prev 2>/dev/null || true
+        fi
         field() {
           { grep -m 1 "^$1=" prev/version.txt 2>/dev/null || true; } | cut -d= -f2- | tr -d '\r'
         }
-        prev_build=$(field build)
+        prev_build=${prev_tag#xbemu-}
         prev_commit=$(field commit)
         prev_upstream=$(field upstream)
-        prev_sub=0
-        # A sub build's version.txt may be the build before it, copied: its
-        # number and commit come from the tag
-        case "$prev_tag" in
-          xbemu-*.*)
-            prev_build=${prev_tag#xbemu-}
-            prev_sub=${prev_build#*.}
-            prev_build=${prev_build%%.*}
-            prev_commit=$(git rev-list -n 1 "$prev_tag" 2>/dev/null || echo "$prev_commit")
-            ;;
-        esac
+        if [ -n "$prev_tag" ]; then
+          prev_commit=$(git rev-list -n 1 "$prev_tag" 2>/dev/null || echo "$prev_commit")
+        fi
         echo "prev_tag=$prev_tag" >> "$GITHUB_OUTPUT"
 
-        # "Release-Sub: mac linux" in the head commit's message: a sub build
-        # for those systems
+        # "Release-Systems: mac linux" (or the older "Release-Sub:"): only
+        # those systems are built
         systems=$(git log -1 --format=%B "$COMMIT" |
-                  sed -n 's/^Release-Sub:[[:space:]]*//Ip' | head -n 1 |
+                  sed -n 's/^Release-\(Systems\|Sub\):[[:space:]]*//Ip' | head -n 1 |
                   tr 'A-Z,' 'a-z ' | xargs || true)
         for s in $systems; do
           case "$s" in
             windows|mac|linux) ;;
-            *) echo "::error title=Unknown system in Release-Sub::$s (use windows, mac or linux)"
+            *) echo "::error title=Unknown system in Release-Systems::$s (use windows, mac or linux)"
                exit 1 ;;
           esac
         done
-        if [ -n "$systems" ] && [ -z "$prev_build" ]; then
-          echo "::error title=No build to make a sub build of::Release-Sub needs a published build first"
-          exit 1
-        fi
-        # "Release-Channel: beta": a beta of the newest release
-        channel=$(git log -1 --format=%B "$COMMIT" |
-                  sed -n 's/^Release-Channel:[[:space:]]*//Ip' | head -n 1 |
-                  tr 'A-Z' 'a-z' | xargs || true)
-        case "$channel" in
-          ""|beta) ;;
-          *) echo "::error title=Unknown Release-Channel::$channel (use beta)"
-             exit 1 ;;
-        esac
-        if [ "$channel" = beta ] && [ -z "$prev_build" ]; then
-          echo "::error title=No build to make a beta of::Release-Channel: beta needs a published build first"
+        if [ -n "$systems" ] && [ -z "$prev_tag" ]; then
+          echo "::error title=No release to copy the other systems from::Release-Systems needs a published ${channel:-} release first"
           exit 1
         fi
 
@@ -339,44 +379,25 @@ jobs:
         head -n 1 meta/changes.md | cut -c 3- > meta/notes.txt
 
         echo "release=true" >> "$GITHUB_OUTPUT"
-        beta=0
+        build=$(( ${last_build:-0} + 1 ))
+        systems=${systems:-windows mac linux}
+        label="v$release_line build $build"
         if [ "$channel" = beta ]; then
-          # The next beta of the newest release: 27.3.1, 27.3.2...
-          build=$prev_build
-          sub=$prev_sub
-          last=$(gh release list --limit 200 --json tagName --jq '.[].tagName' 2>/dev/null |
-                 sed -n "s/^xbemu-$build\.$sub\.\([0-9][0-9]*\)\$/\1/p" | sort -n | tail -n 1)
-          beta=$(( ${last:-0} + 1 ))
-          if [ "$beta" -gt 99 ]; then
-            echo "::error title=Too many betas::$build.$sub has 99 betas already"
-            exit 1
-          fi
-          label="$build.$sub.$beta"
-          systems=${systems:-windows mac linux}
-          echo "Beta $label for: $systems (the rest copied from $prev_tag)"
-        elif [ -n "$systems" ]; then
-          build=$prev_build
-          sub=$(( prev_sub + 1 ))
-          label="$build.$sub"
-          echo "Sub build $label for: $systems (the rest copied from $prev_tag)"
-        else
-          build=$(( ${prev_build:-0} + 1 ))
-          sub=0
-          label=$build
-          systems="windows mac linux"
+          label="$label beta"
         fi
+        echo "$label for: $systems${prev_tag:+ (the rest copied from $prev_tag)}"
         {
           echo "build=$build"
-          echo "sub=$sub"
-          echo "beta=$beta"
+          echo "channel=$channel"
           echo "label=$label"
           echo "systems=$systems"
-          echo "tag=xbemu-$label"
+          echo "tag=xbemu-$build"
         } >> "$GITHUB_OUTPUT"
-        # Only main publishes; other branches are test runs
-        if [ "$GITHUB_REF" = refs/heads/main ]; then
+        # Only main publishes, and only with a channel; the rest are test runs
+        if [ "$GITHUB_REF" = refs/heads/main ] && [ -n "$channel" ]; then
           echo "publish=true" >> "$GITHUB_OUTPUT"
         else
+          echo "No Release-Channel line (or not main): building without publishing."
           echo "publish=false" >> "$GITHUB_OUTPUT"
         fi
     - name: Install dependencies
@@ -408,6 +429,24 @@ jobs:
       with:
         name: meta
         path: meta
+    # The full Windows package's new console disk: XBemu's own blank disk (no
+    # files from anyone; the XBL Dashboard installs on first start)
+    - name: Make the blank hard disk
+      if: steps.plan.outputs.release == 'true' && contains(steps.plan.outputs.systems, 'windows')
+      run: |
+        set -euo pipefail
+        sudo apt-get install -qy qemu-utils
+        python3 xbemu/tools/make-blank-hdd.py blank.raw
+        mkdir -p blank
+        qemu-img convert -O qcow2 blank.raw blank/xbox_hdd.qcow2
+        rm blank.raw
+        ls -l blank
+    - name: Upload the blank hard disk
+      if: steps.plan.outputs.release == 'true' && contains(steps.plan.outputs.systems, 'windows')
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4
+      with:
+        name: blank-hdd
+        path: blank
 
   build:
     name: Build xemu.exe
@@ -458,19 +497,36 @@ jobs:
         name: xemu
         path: dist
 
+  # Publishing goes through the channel's GitHub environment ("beta" or
+  # "stable"): it is recorded under Deployments, and its protection rules
+  # (required reviewers, wait timer, allowed branches) hold the release until
+  # they pass. Set them in Settings > Environments.
+  deploy:
+    name: Approve the ${{ needs.prepare.outputs.channel }} release
+    needs: [prepare, build]
+    if: needs.prepare.outputs.publish == 'true' && (needs.build.result == 'success' || needs.build.result == 'skipped')
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ needs.prepare.outputs.channel }}
+      url: ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ needs.prepare.outputs.tag }}
+    steps:
+    - name: Channel
+      run: echo "Publishing ${{ needs.prepare.outputs.label }} (${{ needs.prepare.outputs.tag }}) to ${{ needs.prepare.outputs.channel }}"
+
   release:
     name: Package and release
-    needs: [prepare, build]
-    # Also when a sub build leaves Windows out (no xemu.exe built)
-    if: always() && needs.prepare.outputs.release == 'true' && (needs.build.result == 'success' || needs.build.result == 'skipped')
+    needs: [prepare, build, deploy]
+    # Also when a partial build leaves Windows out (no xemu.exe built); a
+    # published release only after its channel's environment let it through
+    if: always() && needs.prepare.outputs.release == 'true' && (needs.build.result == 'success' || needs.build.result == 'skipped') && (needs.deploy.result == 'success' || (needs.deploy.result == 'skipped' && needs.prepare.outputs.publish != 'true'))
     runs-on: windows-latest
     env:
       GH_TOKEN: ${{ github.token }}
       # Not the upstream remote, which gh would prefer
       GH_REPO: ${{ github.repository }}
       BUILD: ${{ needs.prepare.outputs.build }}
-      SUB: ${{ needs.prepare.outputs.sub }}
-      BETA: ${{ needs.prepare.outputs.beta }}
+      CHANNEL: ${{ needs.prepare.outputs.channel }}
+      RELEASE_LINE: ${{ needs.prepare.outputs.release_line }}
       LABEL: ${{ needs.prepare.outputs.label }}
       SYSTEMS: ${{ needs.prepare.outputs.systems }}
       PREV_TAG: ${{ needs.prepare.outputs.prev_tag }}
@@ -503,6 +559,12 @@ jobs:
       with:
         name: meta
         path: meta
+    - name: Download the blank hard disk
+      if: contains(needs.prepare.outputs.systems, 'windows')
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v4
+      with:
+        name: blank-hdd
+        path: blank
     - name: Build the launcher
       if: contains(needs.prepare.outputs.systems, 'windows')
       shell: pwsh
@@ -540,15 +602,9 @@ jobs:
         cp "xbemu/package/XBL Dashboard Installer.iso" \
             "pkg/system/XBL Dashboard Installer.iso"
         notes=$(cat meta/notes.txt 2>/dev/null || true)
-        printf 'build=%s\nxemu=%s\nversion=%s\ndate=%s\ncommit=%s\nupstream=%s\nnotes=%s\n' \
-            "$BUILD" "${UPSTREAM#v}" "$VERSION" "$(date -u +%Y-%m-%d)" "$COMMIT" "$UPSTREAM" "$notes" \
+        printf 'build=%s\nrelease=%s\nchannel=%s\nxemu=%s\nversion=%s\ndate=%s\ncommit=%s\nupstream=%s\nnotes=%s\n' \
+            "$BUILD" "$RELEASE_LINE" "${CHANNEL:-test}" "${UPSTREAM#v}" "$VERSION" "$(date -u +%Y-%m-%d)" "$COMMIT" "$UPSTREAM" "$notes" \
             > pkg/system/version.txt
-        if [ "${SUB:-0}" != 0 ]; then
-          echo "sub=$SUB" >> pkg/system/version.txt
-        fi
-        if [ "${BETA:-0}" != 0 ]; then
-          echo "beta=$BETA" >> pkg/system/version.txt
-        fi
         # Every line of "What changed", which the app shows after an update
         { sed -n 's/^- /change=/p' meta/changes.md 2>/dev/null || true; } >> pkg/system/version.txt
         (cd pkg && 7z a -tzip -bso0 ../XBemu-update.zip .)
@@ -556,6 +612,26 @@ jobs:
         echo "sha256=$(sha256sum XBemu-update.zip | cut -d' ' -f1)" >> version.txt
         mv src/*.tar.zst "XBemu-source-$TAG.tar.zst"
         cat version.txt
+
+        # The full package for new players: the same files in an XBemu
+        # folder, plus the blank disk a new console starts from and the
+        # games folder. Nothing in it may be Microsoft's or a used console's
+        full="XBemu-win-${BUILD:-test}-full.zip"
+        mkdir -p full
+        cp -a pkg full/XBemu
+        mkdir -p full/XBemu/system/fresh full/XBemu/games
+        cp blank/xbox_hdd.qcow2 full/XBemu/system/fresh/xbox_hdd.qcow2
+        echo "Copy your game disc images (.iso) into this folder." \
+            > "full/XBemu/games/Put your game disc images here.txt"
+        bad=$(cd full && find XBemu -type f | grep -iE 'complex_4627|mcpx|eeprom\.bin|xboxdash|xbl dashboard(\.| loader)|black arrow|rainbow six|xbox_hdd\.qcow2' |
+              grep -v '^XBemu/system/fresh/xbox_hdd\.qcow2$' || true)
+        if [ -n "$bad" ]; then
+          echo "::error title=File that must never ship::$bad"
+          exit 1
+        fi
+        (cd full && 7z a -tzip -bso0 "../$full" XBemu)
+        ls -l "$full"
+        echo "FULL_ZIP=$full" >> "$GITHUB_ENV"
     # A sub build without Windows: the newest release's Windows files, so
     # Windows players see no new build
     - name: Copy the Windows files of the build before
@@ -586,15 +662,15 @@ jobs:
         trap 'echo "::error::line $LINENO: $BASH_COMMAND"' ERR
         images="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${COMMIT}/xbemu/docs/images"
         {
-          echo "Build $LABEL of XBemu, based on xemu ${UPSTREAM#v} (source version $VERSION)."
+          echo "XBemu $LABEL, based on xemu ${UPSTREAM#v} (source version $VERSION)."
           echo
-          if [ "${BETA:-0}" != 0 ]; then
+          if [ "$SYSTEMS" != "windows mac linux" ]; then
             echo "<!-- systems: $SYSTEMS -->"
-            echo "**Beta build.** Only players who ticked Help > Versions & Updates > Get beta builds are offered it. Everyone else stays on ${PREV_TAG#xbemu-}."
+            echo "For $(echo "$SYSTEMS" | sed 's/windows/Windows/; s/mac/Mac/; s/linux/Linux/; s/ /, /g') only. Other systems keep the files of build ${PREV_TAG#xbemu-} and are not offered anything."
             echo
-          elif [ "${SUB:-0}" != 0 ]; then
-            echo "<!-- systems: $SYSTEMS -->"
-            echo "A sub build for $(echo "$SYSTEMS" | sed 's/windows/Windows/; s/mac/Mac/; s/linux/Linux/; s/ /, /g') only. Other systems keep the files of ${PREV_TAG#xbemu-} (build ${PREV_TAG#xbemu-}) and are not offered anything."
+          fi
+          if [ "$CHANNEL" = beta ]; then
+            echo "**Beta build.** Only players on Beta (the Stable | Beta switch in Help > Versions & Updates, or in the update window) are offered it."
             echo
           fi
           if [ -s meta/changes.md ]; then
@@ -611,12 +687,19 @@ jobs:
           echo
           echo "To update by hand, close the emulator and unzip \`XBemu-update.zip\` over your XBemu folder."
           echo
-          echo "**New here?** Get the full package from where XBemu is shared. This download is an update for a package you already have: it has no Xbox BIOS, dashboard or game files and cannot set up a new console on its own. See the [README](https://github.com/${GITHUB_REPOSITORY}#readme)."
+          if [ -n "${FULL_ZIP:-}" ]; then
+            echo "**New here?** Download \`$FULL_ZIP\`, unzip it anywhere, copy your game disc images into \`games\` and double-click **XBemu**. See the [README](https://github.com/${GITHUB_REPOSITORY}#readme)."
+          else
+            echo "**New here?** Download the full package of the newest Windows build. See the [README](https://github.com/${GITHUB_REPOSITORY}#readme)."
+          fi
           echo
           echo "### Files"
           echo
           echo "| File | What it is |"
           echo "|---|---|"
+          if [ -n "${FULL_ZIP:-}" ]; then
+            echo "| \`$FULL_ZIP\` | Everything to start: XBemu for Windows with the OXOS BIOS and a new blank console |"
+          fi
           echo "| \`XBemu-update.zip\` | The launcher, xemu.exe, the shader list and the XBL Dashboard installer |"
           echo "| \`version.txt\` | What the launcher reads to find this build |"
           echo "| \`XBemu-source-$TAG.tar.zst\` | The complete source this build was made from |"
@@ -628,6 +711,7 @@ jobs:
         name: XBemu-windows-test
         path: |
           XBemu-update.zip
+          XBemu-win-*-full.zip
           version.txt
           notes.md
         compression-level: 0
@@ -635,18 +719,21 @@ jobs:
       if: needs.prepare.outputs.publish == 'true'
       shell: bash
       run: |
-        # A beta is a pre-release and never the latest: only the beta
-        # channel looks for it
-        if [ "${BETA:-0}" != 0 ]; then
+        # A beta is a pre-release and never the latest: only players on
+        # Beta look for it
+        if [ "$CHANNEL" = beta ]; then
           kind=(--prerelease --latest=false)
-          title="Build $LABEL beta (xemu ${UPSTREAM#v})"
         else
           kind=(--latest)
-          title="Build $LABEL (xemu ${UPSTREAM#v})"
+        fi
+        title="XBemu $LABEL"
+        full=()
+        if [ -n "${FULL_ZIP:-}" ]; then
+          full=("$FULL_ZIP")
         fi
         if ! out=$(gh release create "$TAG" --target "$COMMIT" "${kind[@]}" \
             --title "$title" --notes-file notes.md \
-            XBemu-update.zip version.txt \
+            XBemu-update.zip version.txt "${full[@]}" \
             "XBemu-source-$TAG.tar.zst" 2>&1); then
           echo "::error::$(echo "$out" | tr '\n' ' ')"
           exit 1
@@ -788,8 +875,8 @@ jobs:
     runs-on: ubuntu-latest
     env:
       BUILD: ${{ needs.prepare.outputs.build }}
-      SUB: ${{ needs.prepare.outputs.sub }}
-      BETA: ${{ needs.prepare.outputs.beta }}
+      CHANNEL: ${{ needs.prepare.outputs.channel }}
+      RELEASE_LINE: ${{ needs.prepare.outputs.release_line }}
       PUBLISH: ${{ needs.prepare.outputs.publish }}
       VERSION: ${{ needs.prepare.outputs.version }}
       UPSTREAM: ${{ needs.prepare.outputs.upstream }}
@@ -834,15 +921,9 @@ jobs:
           build="$BUILD"
         fi
         notes=$(cat meta/notes.txt 2>/dev/null || true)
-        printf 'build=%s\nxemu=%s\nversion=%s\ndate=%s\ncommit=%s\nupstream=%s\nnotes=%s\n' \
-            "$build" "${UPSTREAM#v}" "$VERSION" "$(date -u +%Y-%m-%d)" "$COMMIT" "$UPSTREAM" "$notes" \
+        printf 'build=%s\nrelease=%s\nchannel=%s\nxemu=%s\nversion=%s\ndate=%s\ncommit=%s\nupstream=%s\nnotes=%s\n' \
+            "$build" "$RELEASE_LINE" "${CHANNEL:-test}" "${UPSTREAM#v}" "$VERSION" "$(date -u +%Y-%m-%d)" "$COMMIT" "$UPSTREAM" "$notes" \
             > "$pkg/version.txt"
-        if [ -n "$build" ] && [ "${SUB:-0}" != 0 ]; then
-          echo "sub=$SUB" >> "$pkg/version.txt"
-        fi
-        if [ -n "$build" ] && [ "${BETA:-0}" != 0 ]; then
-          echo "beta=$BETA" >> "$pkg/version.txt"
-        fi
         { sed -n 's/^- /change=/p' meta/changes.md 2>/dev/null || true; } >> "$pkg/version.txt"
         ls -la "$pkg"
         # zip keeps the app's links and executable bits, which the artifact
@@ -863,7 +944,7 @@ jobs:
   mac-publish:
     name: Add the Mac app to the release
     needs: [prepare, release, mac-package]
-    # A sub build without the Mac copies the newest release's Mac files
+    # A partial build without the Mac copies the newest release's Mac files
     if: always() && needs.release.result == 'success' && (needs.mac-package.result == 'success' || !contains(needs.prepare.outputs.systems, 'mac')) && (needs.prepare.outputs.publish == 'true' || needs.prepare.outputs.draft == 'true')
     runs-on: ubuntu-latest
     env:
@@ -1031,8 +1112,8 @@ jobs:
     runs-on: ubuntu-latest
     env:
       BUILD: ${{ needs.prepare.outputs.build }}
-      SUB: ${{ needs.prepare.outputs.sub }}
-      BETA: ${{ needs.prepare.outputs.beta }}
+      CHANNEL: ${{ needs.prepare.outputs.channel }}
+      RELEASE_LINE: ${{ needs.prepare.outputs.release_line }}
       PUBLISH: ${{ needs.prepare.outputs.publish }}
       VERSION: ${{ needs.prepare.outputs.version }}
       UPSTREAM: ${{ needs.prepare.outputs.upstream }}
@@ -1075,15 +1156,9 @@ jobs:
           build="$BUILD"
         fi
         notes=$(cat meta/notes.txt 2>/dev/null || true)
-        printf 'build=%s\nxemu=%s\nversion=%s\ndate=%s\ncommit=%s\nupstream=%s\nnotes=%s\n' \
-            "$build" "${UPSTREAM#v}" "$VERSION" "$(date -u +%Y-%m-%d)" "$COMMIT" "$UPSTREAM" "$notes" \
+        printf 'build=%s\nrelease=%s\nchannel=%s\nxemu=%s\nversion=%s\ndate=%s\ncommit=%s\nupstream=%s\nnotes=%s\n' \
+            "$build" "$RELEASE_LINE" "${CHANNEL:-test}" "${UPSTREAM#v}" "$VERSION" "$(date -u +%Y-%m-%d)" "$COMMIT" "$UPSTREAM" "$notes" \
             > "$pkg/version.txt"
-        if [ -n "$build" ] && [ "${SUB:-0}" != 0 ]; then
-          echo "sub=$SUB" >> "$pkg/version.txt"
-        fi
-        if [ -n "$build" ] && [ "${BETA:-0}" != 0 ]; then
-          echo "beta=$BETA" >> "$pkg/version.txt"
-        fi
         { sed -n 's/^- /change=/p' meta/changes.md 2>/dev/null || true; } >> "$pkg/version.txt"
         ls -la "$pkg"
         # tar keeps the app's links and executable bits, which the artifact
@@ -1106,7 +1181,7 @@ jobs:
     needs: [prepare, release, linux-package, mac-publish]
     # After the Mac app (or its failure), so the two never edit the notes at
     # once
-    # A sub build without Linux copies the newest release's Linux files
+    # A partial build without Linux copies the newest release's Linux files
     if: always() && needs.release.result == 'success' && (needs.linux-package.result == 'success' || !contains(needs.prepare.outputs.systems, 'linux')) && (needs.prepare.outputs.publish == 'true' || needs.prepare.outputs.draft == 'true')
     runs-on: ubuntu-latest
     env:

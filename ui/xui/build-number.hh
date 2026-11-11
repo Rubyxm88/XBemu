@@ -1,14 +1,15 @@
 //
-// xemu User Interface: XBemu build numbers with sub builds
-// and betas
+// xemu User Interface: XBemu build numbers
 //
-// A build is a whole number (26), a sub build of it (26.1, 26.2...) that
-// updates only some systems, or a beta of either (27.3.1, 27.3.2...) that
-// only players on the beta channel get. Version files keep "build=26", which
-// every older launcher and app reads as a whole number, and add "sub=1" for a
-// sub build and "beta=1" for a beta; release tags are build-26.1 and
-// build-27.3.1. Inside the program one number holds all three:
-// build * 10000 + sub * 100 + beta (260100 for 26.1, 270301 for 27.3.1), so
+// XBemu builds are "v0.1 build 7": the build number goes up by one with
+// every release, stable or beta, and the tag is xbemu-7. Whether a build is
+// a beta is the channel= line of its version file and the pre-release mark
+// on GitHub, not its number. Version files say "build=7".
+//
+// The older numbering is still read: sub builds (26.1, "sub=1") and betas
+// with a three-part number (27.3.1, "beta=1"), as Black Arrow Online copies
+// have them. Inside the program one number holds all three:
+// build * 10000 + sub * 100 + beta (70000 for 7, 270301 for 27.3.1), so
 // comparing two builds stays a plain comparison.
 //
 // This program is free software; you can redistribute it and/or modify
@@ -115,7 +116,7 @@ static inline std::string BuildText(int code)
     return text;
 }
 
-// The release tag: build-26, build-26.1 or build-27.3.1
+// The release tag: xbemu-7 (older: xbemu-26.1, xbemu-27.3.1)
 static inline std::string BuildTag(int code)
 {
     return "xbemu-" + BuildText(code);

@@ -272,8 +272,8 @@ static const char *const versions_text[] = {
     "Help > Versions & Updates lists every build: install the newest, or go "
     "back to an earlier one if a new build gives you trouble. It asks first, "
     "then closes XBemu, installs the build and opens it again.",
-    "Stable | Beta, at the top right of that window: Beta also offers test "
-    "builds (such as 1.0.1) before everyone else. They may have problems. "
+    "Stable | Beta, at the top right of that window: Beta also offers beta "
+    "builds before everyone else. They may have problems. "
     "Back on Stable you can return to the latest stable build right away.",
 #if defined(__APPLE__) || defined(__linux__)
     "An update replaces the app only. Your console, Xbox Live sign-in, saves, "

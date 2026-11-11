@@ -50,6 +50,8 @@ def main():
                  'build', 'commit', 'version'):
         ap.add_argument('--' + name.replace('_', '-'), required=True)
     ap.add_argument('--notes', default='First XBemu build')
+    ap.add_argument('--channel', default='stable',
+                    choices=('stable', 'beta', 'test'))
     ap.add_argument('--date', default=datetime.date.today().isoformat())
     a = ap.parse_args()
 
@@ -78,10 +80,14 @@ def main():
               'w') as f:
         f.write('Copy your game disc images (.iso) into this folder.\n')
     xemu = a.version.lstrip('v').split('-')[0]
+    # The version line ("0.1") is in xbemu/VERSION
+    with open(os.path.join(PACKAGE, '..', 'VERSION')) as f:
+        release = f.read().strip()
     with open(os.path.join(sysd, 'version.txt'), 'w', newline='\n') as f:
-        f.write('build=%s\nxemu=%s\nversion=%s\ndate=%s\ncommit=%s\n'
-                'upstream=v%s\nnotes=%s\n' %
-                (a.build, xemu, a.version, a.date, a.commit, xemu, a.notes))
+        f.write('build=%s\nrelease=%s\nchannel=%s\nxemu=%s\nversion=%s\n'
+                'date=%s\ncommit=%s\nupstream=v%s\nnotes=%s\n' %
+                (a.build, release, a.channel, xemu, a.version, a.date,
+                 a.commit, xemu, a.notes))
 
     files = []
     for root, _, names in os.walk(pkg):

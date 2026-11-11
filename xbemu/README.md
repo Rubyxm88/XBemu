@@ -1,147 +1,135 @@
-# Black Arrow Online
+# XBemu: building and releasing
 
-A build of [xemu](https://github.com/xemu-project/xemu), the original Xbox
-emulator, set up for playing Rainbow Six 3: Black Arrow on XB Online
-(xb.live). This repository is the xemu source with the changes below, plus the
-launcher and the scripts used to assemble the package.
-
-xemu is licensed under the GPL, version 2 or later. See `LICENSE` and
-`COPYING` in the repository root.
-
-## What is changed from xemu
-
-- **Menus**: Play, XB Live, Sound, Graphics, Troubleshoot and Help: start a game from the games folder, run the game
-  update installer, open the XBL Dashboard for account setup or the original
-  Xbox dashboard, show the console's Xbox Live gamertag, and open the xb.live
-  pages to create an account or get a link code.
-- **XB Online DNS redirect**: a network setting that points the console's
-  Xbox Live lookups at XB Online.
-- **Hosting**: with NAT networking the console takes the computer's own
-  network address, so players on the same network can join a game hosted in
-  the emulator. `lan_address = false` under `[net.nat]` in `xemu.toml`
-  restores the stock behaviour.
-- **First start**: a newly set up console opens the XBL Dashboard, from the
-  hard disk when it is installed there and from its disc image otherwise.
-- **Portable folder**: settings, BIOS and disk paths are relative to the
-  folder of the executable.
-- **Graphics**: enhanced graphics (antialiasing, sharpening, trilinear and
-  anisotropic filtering), a fix for menu textures in Black Arrow, and an
-  optional speed-up, "Improve render handling", under Graphics and Settings > Display.
-- **Idle CPU use**: short main-loop waits sleep instead of spinning.
-- **Network card**: packets held while the game's receive buffer was full
-  are delivered as soon as it has room again.
-- **Memory**: the console has 128 MB by default instead of 64 MB.
-- **Shaders**: a shipped list of Black Arrow's shaders is built in the
-  background before the game needs them, and every shader a game builds is
-  kept in a list of that game's own (`shader-list-mine-<title id>.bin`), so
-  the precache builds only the loaded game's shaders. Black Arrow's list is
-  also written to `shader-list-mine-v2.bin`, the list builds up to 24 read.
-- **Linux and Mac**: the same app with a self-updater (`ui/xui/self-update.cc`);
-  Linux installs with `black-arrow-online/linux/setup.sh`.
-
-The source changes are the commits on top of the upstream history.
-
-## What is not in this repository
-
-The Xbox BIOS and MCPX boot ROM, the Xbox dashboard files, the XBL Dashboard,
-hard disk images and game content. They are not ours to distribute here. The
-launcher asks each player for their own files, or starts from a clean disk
-that the package maintainer assembles.
+This repository is the xemu source with XBemu's changes on top (the commits
+after the xemu release tag), plus the launcher and packaging in this folder.
 
 ## Folders
 
 | Folder | Contents |
 |---|---|
-| `docs/` | Images used by the README and the release notes |
-| `package/` | Launcher source (`Launcher.cs`), the `xemu.toml` shipped with the package, the player README and the reset script |
-| `tools/` | Build script for the Windows executable, the clean hard disk builder, and FATX / Xbox disc image helpers |
+| `VERSION` | The version line of the builds, such as `0.1` |
+| `package/` | Launcher source (`Launcher.cs`), the player README, the XBL Dashboard installer disc, the shader list, `oxos.txt` (the OXOS release used) |
+| `tools/` | Package and blank-disk scripts, FATX helpers, Docker build scripts |
+| `mac/`, `linux/` | Setup scripts of the Mac and Linux apps |
+| `docs/` | Images for the README and release notes |
 
-## Building xemu.exe
+## What is never in this repository or a release
 
-With Docker, from a checkout of this repository:
+Microsoft's BIOS and MCPX boot ROM, the Microsoft dashboard, used console
+disks (`eeprom.bin`, a played `xbox_hdd.qcow2`), game discs and game
+updates. The packaging stops when one of them turns up.
 
-```
-docker run --rm -v xemu-build:/work -v "<checkout>:/src:ro" \
-    -v "<checkout>/black-arrow-online/tools:/tools:ro" -v "<output folder>:/out" \
-    ghcr.io/xemu-project/xemu-win64-toolchain-gcc:sha-2881edd \
-    bash /tools/docker-build.sh
-```
+## Releases
 
-The result is `<output folder>/dist/xemu.exe`.
-
-## Building the launcher
-
-On Windows, with the C# compiler that ships with the .NET Framework:
+`.github/workflows/xbemu.yml` builds Windows, Mac and Linux on every push
+to `main`. **A push publishes nothing** unless its head commit message has a
+channel line:
 
 ```
-csc.exe /nologo /target:winexe /optimize+ /win32icon:ui\icons\xemu-icon.ico ^
-    "/out:Black Arrow Online.exe" /r:System.Windows.Forms.dll ^
-    /r:System.Drawing.dll /r:System.IO.Compression.dll ^
-    /r:System.IO.Compression.FileSystem.dll black-arrow-online\package\Launcher.cs
+Fix the menu lag
+
+Release-Channel: beta
 ```
 
-## The full package and the content pack
-
-Players get the full package: a release plus the files that are not in this
-repository, in one zip, shared outside GitHub. Releases then keep it up to
-date through the launcher.
-
-For assembling or repairing a package, the launcher can also take those
-files as a separate zip, laid out like the package folder, with a marker
-file so the launcher recognises it:
-
-```
-BlackArrowOnline-content.zip
-    system/content.txt
-    system/mcpx.bin
-    system/Complex_4627v1.03.bin
-    system/XBL Dashboard.iso
-    system/XBL Dashboard Loader.iso
-    system/Black Arrow Update and Maps.iso
-    system/fresh/xbox_hdd.qcow2
-```
-
-A release unzipped into an empty folder plus the content pack is a complete
-package. The launcher writes a default `xemu.toml` when there is none, and
-while the BIOS, MCPX or clean disk is missing its clean start button asks
-for the content pack instead. It only ever unpacks into `system` and never
-over `xemu.toml`, `eeprom.bin`, `xbox_hdd.qcow2` or `xemu.exe`.
-
-## Releases and updates
-
-`.github/workflows/black-arrow-online.yml` builds `xemu.exe` and the launcher
-and publishes them as a release named `build-N`. It runs when `main` changes
-and once a day, when it looks for a new xemu release. A new xemu release is
-merged at build time, not pushed to `main`; if it does not merge cleanly the
-workflow opens an issue and releases nothing until `main` has been merged by
-hand.
-
-Each release has these files:
-
-| File | Contents |
+| Line | Result |
 |---|---|
-| `BlackArrowOnline-update.zip` | Launcher, `xemu.exe`, README and `system/version.txt`, laid out like the package |
-| `version.txt` | Build number, xemu version and the SHA-256 of the zip |
-| `BlackArrowOnline-source-build-N.tar.zst` | The complete source of that build |
-| `BlackArrowOnline-mac-update.zip`, `mac-version.txt` | The Mac app and what it reads to find the build |
-| `BlackArrowOnline-linux-update.tar.gz`, `linux-version.txt` | The Linux app with `setup.sh`, and what it reads to find the build |
+| (none) | Builds everything; the files are kept as the run's Artifacts |
+| `Release-Channel: beta` | Publishes `xbemu-N` as a **pre-release**: offered only to players on Beta |
+| `Release-Channel: stable` | Publishes `xbemu-N` as the **latest** release: offered to everyone |
+| `Release-Systems: mac linux` | With a channel: builds only those systems; the others keep the newest release's files |
+| `Change: ...` | A line of its own in the release notes ("What changed") |
 
-The launcher compares `system\version.txt` with the `version.txt` of the
-latest release and offers the update when the build number is higher. It
-never replaces `xemu.toml`, `eeprom.bin`, `xbox_hdd.qcow2` or anything in
-`games`.
+The same can be done by hand: Actions > XBemu > Run workflow, with a
+channel. N is the next build number (the newest release + 1), and the title
+is "XBemu v0.1 build N" ("... beta" for a beta).
+
+Each release has `XBemu-win-N-full.zip` (the whole package for new
+players), `XBemu-update.zip` + `version.txt` (what the launcher updates
+from), the Mac and Linux update files, and the source.
+
+### Deployments and approval
+
+Publishing runs through the GitHub **environment** named after the channel,
+`beta` or `stable`, so every release shows under Deployments. Both are made
+on first use. To require an approval before a stable release goes out:
+Settings > Environments > `stable` > Required reviewers. Deployment branches
+(`main` only) can be set there too.
+
+### Making a beta stable
+
+Actions > **XBemu promote** > Run workflow, with the build number. The same
+files become the latest release: the version files say `channel=stable`,
+the pre-release mark and " beta" in the title go. It runs in the `stable`
+environment, so it needs the same approval.
+
+### Withdrawing a build
+
+Turn the release back into a draft, or add a line `Broken: why` to its
+notes: the app shows it greyed out and never offers it.
+
+### New xemu releases
+
+Once a day the workflow looks for a new xemu release and, when main does not
+have it, makes a draft test build with it merged. Nothing is published; to
+take it, merge the xemu tag into main by hand. xemu's own workflows are not
+in this repository: when a merge brings one back (a modify/delete
+conflict), remove it again with `git rm`.
+
+## version.txt
+
+```
+build=7
+release=0.1
+channel=beta
+xemu=0.8.139
+version=0.8.139-12-g0123456789
+date=2026-11-10
+commit=<full hash>
+upstream=v0.8.139
+notes=<first line of the notes>
+change=<one per line>
+sha256=<of the update zip; release copy only>
+```
+
+Older numbering is still read (Black Arrow Online folders): `sub=` and
+`beta=` lines, tags such as `xbemu-26.1` and `xbemu-27.3.1`.
+
+## Building on a PC
+
+`xemu.exe`, with Docker (builds the committed `xbemu-main`):
+
+```
+docker run --rm -v xemu-build:/work -v "<checkout>:/src:ro" -v "<out>:/out" \
+    -v "<tools folder>:/tools:ro" \
+    ghcr.io/xemu-project/xemu-win64-toolchain-gcc:sha-2881edd \
+    bash /tools/docker-build-xbemu.sh
+```
+
+The launcher, with the .NET Framework's C# compiler:
+
+```
+csc.exe /nologo /target:winexe /optimize+ /win32icon:ui\icons\xbemu.ico ^
+    /resource:data\xbemu_logo.png,xbemu_logo.png /out:XBemu.exe ^
+    /r:System.Windows.Forms.dll /r:System.Drawing.dll ^
+    /r:System.IO.Compression.dll /r:System.IO.Compression.FileSystem.dll ^
+    xbemu\package\Launcher.cs
+```
+
+The full package: `tools/make-blank-hdd.py` (then `qemu-img convert -O
+qcow2`) for the blank disk, then `tools/make-xbemu-package.py` (see its
+usage line; `--channel beta` for a beta).
 
 ## Package layout
 
 ```
-Black Arrow Online.exe      launcher
+XBemu.exe                       launcher
 README.txt
-games\                      the player's own game disc image
+games\                          the player's disc images
 system\
-    xemu.exe
-    xemu.toml
-    mcpx.bin, <BIOS>.bin    supplied separately
-    XBL Dashboard.iso       supplied separately
-    XBL Dashboard Loader.iso
-    fresh\xbox_hdd.qcow2    clean disk, built with tools/build-clean-hdd.sh
+    xemu.exe, LICENSE.txt
+    version.txt
+    bios\oxos-v0.4.4.bin        OXOS
+    XBL Dashboard Installer.iso runs once on a new console
+    shader-list.bin
+    fresh\xbox_hdd.qcow2        blank disk for a new console
 ```

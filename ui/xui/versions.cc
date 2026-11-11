@@ -4,16 +4,15 @@
 // Lists the builds on the releases page, newest first, and installs any of
 // them: a newer one to update, an older one to roll back to (the newest is
 // then written to update-skip.txt, so it is not offered at start until a
-// newer build is out). Pre-releases
-// and drafts are left out, so a build is withdrawn by ticking "Set as a
-// pre-release" on GitHub. Betas (27.3.1) are pre-releases too, told apart by
-// their three-part tag; they are listed, and offered, only to players who
-// tick "Get beta builds" (update-channel.txt says "beta", which the launcher
-// reads as well). A release whose notes have a line starting with
-// "Broken:" is shown greyed out with the rest of that line, and cannot be
-// installed. A sub build (26.1, see build-number.hh) that leaves this system
-// as it was, which its notes say in a "<!-- systems: mac -->" line, is left
-// out: its files for this system are the build before it, copied.
+// newer build is out). Drafts are left out. Betas are pre-releases on
+// GitHub; they are listed, and offered, only to players on Beta (the Stable |
+// Beta switch; update-channel.txt says "beta", which the launcher reads as
+// well). To withdraw a build, turn it back into a draft, or add a line
+// starting with "Broken:" to its notes: it is then shown greyed out with the
+// rest of that line, and cannot be installed. A build for some systems only
+// that leaves this system as it was, which its notes say in a
+// "<!-- systems: mac -->" line, is left out: its files for this system are
+// the build before it, copied.
 //
 // Installing closes xemu, since its files cannot be replaced while it runs.
 // On Windows the launcher next to the system folder does the work
@@ -78,26 +77,14 @@ using json = nlohmann::json;
 
 #define LAUNCHER_NAME "XBemu.exe"
 
-/* The first build with this window; going back further loses it */
-#define FIRST_BUILD_WITH_VERSIONS 15
-
 /*
- * The first build whose window can install builds on Windows (15 and 16 could
- * not start the launcher). Rolling back further does not hold the newest
- * build back: the launcher's offer at start is then the only way forward.
+ * The first build with this window, the first whose window can install
+ * builds, and the first that runs games with the Xbox's audio on Dolby. Every
+ * XBemu build has all three (Black Arrow Online needed 15, 17 and 24).
  */
-#if defined(_WIN32)
-#define FIRST_BUILD_THAT_INSTALLS 17
-#else
-#define FIRST_BUILD_THAT_INSTALLS FIRST_BUILD_WITH_VERSIONS
-#endif
-
-/*
- * The first published build that runs the game with the Xbox's audio on
- * Dolby. Older ones close when the game starts with it, and cannot set it
- * back themselves.
- */
-#define FIRST_BUILD_WITH_SURROUND 24
+#define FIRST_BUILD_WITH_VERSIONS 1
+#define FIRST_BUILD_THAT_INSTALLS 1
+#define FIRST_BUILD_WITH_SURROUND 1
 
 /*
  * Build numbers in this file are build-number.hh numbers (26.1 is 260100); the
@@ -136,7 +123,9 @@ VersionsWindow versions_window;
 struct LocalVersion {
     int build;
     std::string xemu, date, commit;
-    std::string label;  // a beta's name, such as "24.1 Linux Beta"
+    std::string label;    // a test build's own name, such as "Linux Beta"
+    std::string release;  // the version line, such as "0.1"
+    std::string channel;  // "stable", "beta", or "test" (not released)
 };
 
 static std::string Field(const std::string &text, const char *key)
@@ -180,11 +169,40 @@ static const LocalVersion &Installed()
             v.date = Field(t, "date");
             v.commit = Field(t, "commit").substr(0, 10);
             v.label = Field(t, "label");
+            v.release = Field(t, "release");
+            v.channel = Field(t, "channel");
             g_free(text);
         }
         g_free(path);
     }
     return v;
+}
+
+// "v0.1 build 7", or "Build 7" for a build without a version line
+static std::string BuildName(int build, const std::string &release)
+{
+    return (release.empty() ? "Build " : "v" + release + " build ") +
+           BuildText(build);
+}
+
+// Whether the installed build is a beta: its version file says so (or it has
+// an older three-part beta number), unless the list shows it was made stable
+// since
+static bool LocalIsBeta(const std::vector<ReleaseBuild> &builds)
+{
+    const LocalVersion &local = Installed();
+    if (BuildIsBeta(local.build)) {
+        return true;
+    }
+    if (local.channel != "beta") {
+        return false;
+    }
+    for (const ReleaseBuild &b : builds) {
+        if (b.build == local.build) {
+            return b.beta;
+        }
+    }
+    return true;
 }
 
 static gchar *SkipFile()
@@ -397,12 +415,10 @@ gpointer VersionsWindow::LoadThread(gpointer opaque)
                 if (build <= 0 || tag != BuildTag(build)) {
                     continue;
                 }
-                // Withdrawn builds are pre-releases. Betas are pre-releases
-                // as well: only the beta channel gets them (and the one
-                // installed is always listed)
-                if (BuildIsBeta(build)
-                        ? !beta_channel && build != installed
-                        : r.value("prerelease", false)) {
+                // Betas are pre-releases: only players on Beta get them (and
+                // the one installed is always listed)
+                bool beta = r.value("prerelease", false) || BuildIsBeta(build);
+                if (beta && !beta_channel && build != installed) {
                     continue;
                 }
                 bool has_asset = false;
@@ -418,15 +434,24 @@ gpointer VersionsWindow::LoadThread(gpointer opaque)
                 }
                 ReleaseBuild b;
                 b.build = build;
+                b.beta = beta;
                 b.date = r.value("published_at", "").substr(0, 10);
                 b.title = r.value("name", "");
+                // "XBemu v0.1 build 7": the version line
+                size_t v = b.title.find(" v");
+                if (v != std::string::npos) {
+                    size_t end = b.title.find_first_not_of("0123456789.", v + 2);
+                    b.release = b.title.substr(v + 2, end == std::string::npos
+                                                          ? std::string::npos
+                                                          : end - v - 2);
+                }
                 std::string body = r["body"].is_string()
                                        ? r["body"].get<std::string>()
                                        : "";
                 ParseNotes(body, b);
-                // A sub build for other systems has this system's files of
-                // the build before it
-                if (build % BUILD_WHOLE_UNIT && !b.systems.empty() &&
+                // A build for other systems has this system's files of the
+                // build before it
+                if (!b.systems.empty() &&
                     (" " + b.systems + " ").find(" " PLATFORM_SYSTEM " ") ==
                         std::string::npos) {
                     continue;
@@ -819,16 +844,16 @@ void VersionsWindow::Draw()
             if (ImGui::SmallButton(names[i]) && !on) {
                 SetBetaChannel(i == 1);
                 Load("channel");
-                ask_back_to_stable = i == 0 && BuildIsBeta(local.build);
+                ask_back_to_stable = i == 0 && LocalIsBeta(builds);
                 beta = i == 1;
             }
             if (on) {
                 PopButtonColors();
             }
             if (ImGui::IsItemHovered()) {
-                ImGui::SetTooltip(i ? "Also get test builds early. They may "
+                ImGui::SetTooltip(i ? "Also get beta builds early. They may "
                                       "have problems."
-                                    : "Full builds only.");
+                                    : "Stable builds only.");
             }
         }
         ImGui::PopStyleVar();
@@ -838,7 +863,9 @@ void VersionsWindow::Draw()
     if (!local.label.empty()) {
         ImGui::Text("%s", local.label.c_str());
     } else if (local.build > 0) {
-        ImGui::Text("Build %s", BuildText(local.build).c_str());
+        std::string name = BuildName(local.build, local.release);
+        ImGui::Text("%s%s", name.c_str(),
+                    LocalIsBeta(builds) ? " beta" : "");
     } else {
         ImGui::Text("Test build");
     }
@@ -872,9 +899,9 @@ void VersionsWindow::Draw()
                        "one to update, or roll back to an older one if the "
                        "newest gives you trouble.");
     if (beta) {
-        ImGui::TextDisabled("Beta: test builds (such as 1.0.1) are offered at "
-                            "start too. They may have problems.");
-    } else if (BuildIsBeta(local.build) && !ask_back_to_stable) {
+        ImGui::TextDisabled("Beta: beta builds are offered at start too. "
+                            "They may have problems.");
+    } else if (LocalIsBeta(builds) && !ask_back_to_stable) {
         ImGui::TextDisabled("Stable: you keep this beta until the next stable "
                             "build, or roll back below.");
     }
@@ -882,7 +909,7 @@ void VersionsWindow::Draw()
         // The newest stable build that is not marked broken
         int stable = 0;
         for (const ReleaseBuild &b : builds) {
-            if (!BuildIsBeta(b.build) && b.broken.empty() && b.build > stable) {
+            if (!b.beta && b.broken.empty() && b.build > stable) {
                 stable = b.build;
             }
         }
@@ -947,14 +974,14 @@ void VersionsWindow::Draw()
                                   ImGui::GetStyleColorVec4(
                                       ImGuiCol_TextDisabled));
         }
-        bool open = ImGui::TreeNodeEx("##build", flags, "Build %s",
-                                      BuildText(b.build).c_str());
+        std::string name = BuildName(b.build, b.release);
+        bool open = ImGui::TreeNodeEx("##build", flags, "%s", name.c_str());
         if (broken) {
             ImGui::PopStyleColor();
         }
         ImGui::SameLine();
         ImGui::TextDisabled("%s", b.date.c_str());
-        if (BuildIsBeta(b.build)) {
+        if (b.beta) {
             ImGui::SameLine();
             ImGui::TextColored(update_color, "BETA");
         }
@@ -1065,7 +1092,8 @@ std::string InstalledBuildText()
         return local.label;
     }
     if (local.build > 0) {
-        return "Build " + BuildText(local.build);
+        std::string name = BuildName(local.build, local.release);
+        return name;
     }
     return "Test Build";
 }
@@ -1193,8 +1221,8 @@ void DrawBuildBadge()
         if (!local.label.empty()) {
             ImGui::Text("XBemu %s", local.label.c_str());
         } else if (local.build > 0) {
-            ImGui::Text("XBemu build %s",
-                        BuildText(local.build).c_str());
+            ImGui::Text("XBemu %s",
+                        BuildName(local.build, local.release).c_str());
         } else {
             ImGui::Text("XBemu test build");
         }

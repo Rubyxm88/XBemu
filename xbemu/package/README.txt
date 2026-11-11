@@ -134,9 +134,10 @@ it replaces go to system\backups (the last 3 kept).
 
 Help > Versions & Updates... lists every build. Pick a newer one to update,
 or an older one to go back if the newest gives you trouble.
-Stable | Beta, at the top right of that window: Stable gets full builds
-only. Beta also gets test builds (such as 1.0.1) before everyone else; they
-may have problems. Going back to Stable offers the latest stable build
+Builds are named like "v0.1 build 7"; the number goes up with every build.
+Stable | Beta, at the top right of that window: Stable gets stable builds
+only. Beta also gets beta builds before everyone else; they may have
+problems. Going back to Stable offers the latest stable build
 right away, or you can stay on the beta until the next stable build.
 To turn the check off, create an empty file system\no-update-check.txt.
 Builds and notes: https://github.com/Rubyxm88/XBemu/releases
