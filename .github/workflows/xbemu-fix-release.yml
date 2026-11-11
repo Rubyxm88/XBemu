@@ -1,0 +1,112 @@
+# Brings a published release up to date without rebuilding it: adds the full
+# Mac and Linux packages it is missing (made from its own update files, the
+# OXOS BIOS and the blank disk from its Windows full package) and writes its
+# notes again in the current layout.
+#
+# Runs for every xbemu/release-fixes/<tag>.txt pushed to main, or by hand
+# (Actions > XBemu fix release > Run workflow). A fix file may hold
+# "change=" lines: they replace the release's "What changed" list.
+name: XBemu fix release
+
+on:
+  push:
+    branches: [main]
+    paths:
+    - 'xbemu/release-fixes/**'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to fix (xbemu-N)
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: xbemu-release-notes
+  cancel-in-progress: false
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
+      with:
+        sparse-checkout: |
+          xbemu/tools
+          xbemu/package
+          xbemu/mac
+          xbemu/linux
+          xbemu/release-fixes
+    - name: Fix
+      env:
+        INPUT_TAG: ${{ inputs.tag }}
+        IMAGES_REF: ${{ github.sha }}
+      run: |
+        set -euo pipefail
+        trap 'echo "::error::line $LINENO: $BASH_COMMAND"' ERR
+        here=$PWD
+        if [ -n "${INPUT_TAG:-}" ]; then
+          tags=("$INPUT_TAG")
+        else
+          mapfile -t tags < <(ls xbemu/release-fixes/*.txt 2>/dev/null | xargs -r -n 1 basename | sed 's/\.txt$//')
+        fi
+        for TAG in "${tags[@]}"; do
+          export TAG
+          echo "::group::$TAG"
+          work=$(mktemp -d)
+          mapfile -t assets < <(gh release view "$TAG" --json assets --jq '.assets[].name')
+          has() { printf '%s\n' "${assets[@]}" | grep -qx -- "$1"; }
+          build=${TAG#xbemu-}
+          gh release download "$TAG" --pattern version.txt --dir "$work"
+
+          # The blank disk and the OXOS BIOS as this release shipped them
+          win_full=$(printf '%s\n' "${assets[@]}" | grep -m 1 -E '^XBemu-win-.*-full\.zip$' || true)
+          if [ -n "$win_full" ]; then
+            gh release download "$TAG" --pattern "$win_full" --dir "$work"
+            unzip -p "$work/$win_full" XBemu/system/fresh/xbox_hdd.qcow2 > "$work/blank.qcow2"
+            unzip -p "$work/$win_full" XBemu/system/oxos.txt > "$work/oxos.txt"
+          fi
+
+          if has XBemu-mac-update.zip && ! has "XBemu-mac-$build-full.zip" && [ -s "$work/blank.qcow2" ]; then
+            mkdir "$work/mac"
+            gh release download "$TAG" --pattern XBemu-mac-update.zip --dir "$work"
+            (cd "$work/mac" && unzip -q ../XBemu-mac-update.zip)
+            cp xbemu/mac/README.txt "$work/mac/XBemu/README.txt"
+            bash xbemu/tools/add-full-content.sh "$work/mac/XBemu" "$work/blank.qcow2" "$work/oxos.txt"
+            (cd "$work/mac" && zip -qry "../XBemu-mac-$build-full.zip" XBemu)
+            gh release upload "$TAG" "$work/XBemu-mac-$build-full.zip"
+          fi
+          if has XBemu-linux-update.tar.gz && ! has "XBemu-linux-$build-full.tar.gz" && [ -s "$work/blank.qcow2" ]; then
+            mkdir "$work/linux"
+            gh release download "$TAG" --pattern XBemu-linux-update.tar.gz --dir "$work"
+            tar -xzf "$work/XBemu-linux-update.tar.gz" -C "$work/linux"
+            cp xbemu/linux/README.txt "$work/linux/XBemu/README.txt"
+            bash xbemu/tools/add-full-content.sh "$work/linux/XBemu" "$work/blank.qcow2" "$work/oxos.txt"
+            tar -czf "$work/XBemu-linux-$build-full.tar.gz" -C "$work/linux" XBemu
+            gh release upload "$TAG" "$work/XBemu-linux-$build-full.tar.gz"
+          fi
+          ls -l "$work"
+
+          # "What changed": the fix file's change= lines, else the release's own
+          fix="xbemu/release-fixes/$TAG.txt"
+          if [ -f "$fix" ] && grep -q '^change=' "$fix"; then
+            sed -n 's/^change=/- /p' "$fix" | tr -d '\r' > "$work/changes.md"
+          else
+            sed -n 's/^change=/- /p' "$work/version.txt" | tr -d '\r' > "$work/changes.md"
+          fi
+          mapfile -t assets < <(gh release view "$TAG" --json assets --jq '.assets[].name')
+          # A partial build's line ("For Mac only. Other systems keep the
+          # files of build N") stays
+          body=$(gh release view "$TAG" --json body --jq .body)
+          systems=$(printf '%s\n' "$body" | sed -n 's/^<!-- systems: \(.*\) -->$/\1/p' | head -n 1)
+          prev=$(printf '%s\n' "$body" | sed -n 's/.*keep the files of build \([0-9][0-9]*\).*/\1/p' | head -n 1)
+          SYSTEMS=${systems:-windows mac linux} PREV_TAG=xbemu-${prev:-} \
+            bash xbemu/tools/release-notes.sh "$work/version.txt" "$work/changes.md" "${assets[@]}" > "$work/notes.md"
+          cat "$work/notes.md"
+          gh release edit "$TAG" --notes-file "$work/notes.md"
+          echo "::endgroup::"
+        done

@@ -463,7 +463,7 @@ elif [ -f "$here/system/content.txt" ]; then
     install_folder_content
 elif [ ! -f "$system/content.txt" ]; then
     fail "this download is only the app, and the Xbox files are not installed yet.
-Get the full Linux package from where XBemu is shared, unpack it
+Get the full Linux package (https://github.com/Rubyxm88/XBemu/releases/latest), unpack it
 and run its setup.sh instead."
 fi
 

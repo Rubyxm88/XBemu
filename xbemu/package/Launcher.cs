@@ -669,8 +669,8 @@ static class Updater
 
     public static UpdateInfo Sample()
     {
-        return Parse("build=12\nxemu=0.8.140\ndate=2026-11-02\n" +
-                     "notes=Follows xemu 0.8.140.");
+        return Parse("build=2\nrelease=0.1\nchannel=stable\nxemu=0.8.139\ndate=2026-11-12\n" +
+                     "notes=Clearer downloads and full Mac and Linux packages.");
     }
 
     public static WebRequest Request(string url, int timeoutMs)

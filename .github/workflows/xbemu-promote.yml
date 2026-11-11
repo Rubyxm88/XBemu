@@ -73,6 +73,6 @@ jobs:
 
         # Title without " beta", and the beta paragraph out of the notes
         title=$(echo "$info" | jq -r .name | sed 's/ beta$//')
-        echo "$info" | jq -r .body | sed '/^\*\*Beta build\.\*\*/{N;d;}' > notes.md
+        echo "$info" | jq -r .body | sed '/^\(> \)\{0,1\}\*\*Beta build\.\*\*/{N;d;}' > notes.md
         gh release edit "$tag" --prerelease=false --latest --title "$title" --notes-file notes.md
         echo "$title is now the stable build."

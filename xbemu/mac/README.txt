@@ -8,19 +8,17 @@ than the Windows one: please report what you find (see REPORTING A PROBLEM).
 FIRST INSTALL
 -------------
 
-The PDF guide that comes with the full package has the same steps with more
-help. In short:
-
 You need:
 - A Mac with macOS 11 (Big Sur) or later on Intel, or macOS 14 (Sonoma) or
   later on Apple Silicon (M1, M2...). Apple menu > About This Mac shows both.
-- The full Mac package (XBemu-mac-...-full.zip), from where XBemu is
-  shared. It has the app and the Xbox files.
+- The full Mac package (XBemu-mac-...-full.zip) from
+  https://github.com/Rubyxm88/XBemu/releases/latest
+  It has the app, the OXOS BIOS and a new blank console.
 - Your game disc images (.iso).
 - A controller, if you play with one: pair it first (Bluetooth settings).
 
-1. Download the full package. Google Drive says it "can't scan this file for
-   viruses" because the file is large: click Download anyway.
+1. Download the full package: on the page above, under Download, click
+   XBemu-mac-...-full.zip.
 
 2. Open Downloads in Finder. If you see a XBemu folder, go on.
    If you only see the .zip, double-click it once to unzip it. Leave the

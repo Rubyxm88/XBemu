@@ -284,7 +284,7 @@ elif [ -f "$here/system/content.txt" ]; then
     install_folder_content
 elif [ ! -f "$system/content.txt" ]; then
     fail "this download is only the app, and the Xbox files are not installed yet.
-Get the full Mac package from where XBemu is shared, unzip it and
+Get the full Mac package (https://github.com/Rubyxm88/XBemu/releases/latest), unzip it and
 run its setup.sh instead."
 fi
 

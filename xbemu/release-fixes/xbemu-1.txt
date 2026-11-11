@@ -1,0 +1,4 @@
+# Fixes for the published release xbemu-1 (see .github/workflows/xbemu-fix-release.yml)
+change=First release of XBemu: the XBL Dashboard, the open-source OXOS BIOS and a new console set up in one click
+change=Builds are named "v0.1 build N", with Stable and Beta channels
+change=Full packages for Windows, Mac and Linux (the Mac and Linux ones were added after release)

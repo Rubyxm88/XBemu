@@ -59,6 +59,7 @@ on:
     paths-ignore:
       - '**.md'
       - 'xbemu/docs/**'
+      - 'xbemu/release-fixes/**'
   schedule:
     - cron: '23 9 * * *'
   workflow_dispatch:
@@ -350,22 +351,21 @@ jobs:
            [ "$(printf '%s\n' "$prev_upstream" "$UPSTREAM" | sort -V | tail -n 1)" = "$UPSTREAM" ]; then
           echo "- Updated to xemu release $UPSTREAM" >> meta/changes.md
         fi
-        if [ -n "$prev_commit" ] && git cat-file -e "$prev_commit^{commit}" 2>/dev/null; then
+        # When the head commit has "Change:" lines, those alone (after its
+        # subject) are the notes, also on a first release
+        head_changes=$(git log -1 --format='%(trailers:key=Change,valueonly)' "$COMMIT" |
+                       sed '/^[[:space:]]*$/d')
+        if [ -n "$head_changes" ]; then
+          {
+            git log -1 --format='- %s' "$COMMIT"
+            echo "$head_changes" | sed 's/^/- /'
+          } | head -n 20 > meta/changes.md
+        elif [ -n "$prev_commit" ] && git cat-file -e "$prev_commit^{commit}" 2>/dev/null; then
           # Only player-facing lines: subjects that start with a lowercase
           # code area ("ci:", "nv2a:", "i386/tcg:", "make-package.py:") are
           # for developers. "Mac:" lines stay. A "Change: ..." line in a
           # commit's message adds a line of its own, to say more than the
-          # subject does. When the head commit has "Change:" lines, those
-          # alone (after its subject) are the notes: a written list for
-          # players instead of every commit's subject.
-          head_changes=$(git log -1 --format='%(trailers:key=Change,valueonly)' "$COMMIT" |
-                         sed '/^[[:space:]]*$/d')
-          if [ -n "$head_changes" ]; then
-            {
-              git log -1 --format='- %s' "$COMMIT"
-              echo "$head_changes" | sed 's/^/- /'
-            } | head -n 20 >> meta/changes.md
-          else
+          # subject does.
           git log --no-merges --first-parent --format='%H' "$prev_commit..$COMMIT" |
               while read -r c; do
                 git log -1 --format='- %s' "$c" |
@@ -373,7 +373,6 @@ jobs:
                 git log -1 --format='%(trailers:key=Change,valueonly)' "$c" |
                     sed '/^[[:space:]]*$/d; s/^/- /'
               done | head -n 20 >> meta/changes.md
-          fi
         fi
         head -n 1 meta/changes.md | cut -c 3- > meta/notes.txt
 
@@ -428,10 +427,10 @@ jobs:
       with:
         name: meta
         path: meta
-    # The full Windows package's new console disk: XBemu's own blank disk (no
-    # files from anyone; the XBL Dashboard installs on first start)
+    # The full packages' new console disk: XBemu's own blank disk (no files
+    # from anyone; the XBL Dashboard installs on first start)
     - name: Make the blank hard disk
-      if: steps.plan.outputs.release == 'true' && contains(steps.plan.outputs.systems, 'windows')
+      if: steps.plan.outputs.release == 'true'
       run: |
         set -euo pipefail
         sudo apt-get update -qq
@@ -442,7 +441,7 @@ jobs:
         rm blank.raw
         ls -l blank
     - name: Upload the blank hard disk
-      if: steps.plan.outputs.release == 'true' && contains(steps.plan.outputs.systems, 'windows')
+      if: steps.plan.outputs.release == 'true'
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4
       with:
         name: blank-hdd
@@ -640,8 +639,13 @@ jobs:
       run: |
         set -euo pipefail
         trap 'echo "::error::line $LINENO: $BASH_COMMAND"' ERR
-        gh release download "$PREV_TAG" --pattern version.txt --pattern XBemu-update.zip
+        gh release download "$PREV_TAG" --pattern version.txt --pattern XBemu-update.zip \
+            --pattern 'XBemu-win-*-full.zip'
         mv src/*.tar.zst "XBemu-source-$TAG.tar.zst"
+        full=$(ls XBemu-win-*-full.zip 2>/dev/null | head -n 1 || true)
+        if [ -n "$full" ]; then
+          echo "FULL_ZIP=$full" >> "$GITHUB_ENV"
+        fi
         cat version.txt
     - name: Write the draft's notes
       if: needs.prepare.outputs.draft == 'true'
@@ -660,50 +664,10 @@ jobs:
       run: |
         set -euo pipefail
         trap 'echo "::error::line $LINENO: $BASH_COMMAND"' ERR
-        images="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${COMMIT}/xbemu/docs/images"
-        {
-          echo "XBemu $LABEL, based on xemu ${UPSTREAM#v} (source version $VERSION)."
-          echo
-          if [ "$SYSTEMS" != "windows mac linux" ]; then
-            echo "<!-- systems: $SYSTEMS -->"
-            echo "For $(echo "$SYSTEMS" | sed 's/windows/Windows/; s/mac/Mac/; s/linux/Linux/; s/ /, /g') only. Other systems keep the files of build ${PREV_TAG#xbemu-} and are not offered anything."
-            echo
-          fi
-          if [ "$CHANNEL" = beta ]; then
-            echo "**Beta build.** Only players on Beta (the Stable | Beta switch in Help > Versions & Updates, or in the update window) are offered it."
-            echo
-          fi
-          if [ -s meta/changes.md ]; then
-            echo "### What changed"
-            echo
-            cat meta/changes.md
-            echo
-          fi
-          echo "### How to get it"
-          echo
-          echo "**Already playing?** Start XBemu as usual. It finds this build and offers to install it. Your console, Xbox Live sign-in, saves, settings and games are not touched."
-          echo
-          echo "<img src=\"$images/launcher-update.png\" width=\"420\" alt=\"The update window\">"
-          echo
-          echo "To update by hand, close the emulator and unzip \`XBemu-update.zip\` over your XBemu folder."
-          echo
-          if [ -n "${FULL_ZIP:-}" ]; then
-            echo "**New here?** Download \`$FULL_ZIP\`, unzip it anywhere, copy your game disc images into \`games\` and double-click **XBemu**. See the [README](https://github.com/${GITHUB_REPOSITORY}#readme)."
-          else
-            echo "**New here?** Download the full package of the newest Windows build. See the [README](https://github.com/${GITHUB_REPOSITORY}#readme)."
-          fi
-          echo
-          echo "### Files"
-          echo
-          echo "| File | What it is |"
-          echo "|---|---|"
-          if [ -n "${FULL_ZIP:-}" ]; then
-            echo "| \`$FULL_ZIP\` | Everything to start: XBemu for Windows with the OXOS BIOS and a new blank console |"
-          fi
-          echo "| \`XBemu-update.zip\` | The launcher, xemu.exe, the shader list and the XBL Dashboard installer |"
-          echo "| \`version.txt\` | What the launcher reads to find this build |"
-          echo "| \`XBemu-source-$TAG.tar.zst\` | The complete source this build was made from |"
-        } > notes.md
+        # Mac and Linux add their files later and write the notes again
+        IMAGES_REF=$COMMIT bash xbemu/tools/release-notes.sh version.txt meta/changes.md \
+            XBemu-update.zip version.txt ${FULL_ZIP:+"$FULL_ZIP"} "XBemu-source-$TAG.tar.zst" > notes.md
+        cat notes.md
     - name: Keep the test build
       if: needs.prepare.outputs.publish != 'true' && needs.prepare.outputs.draft != 'true'
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4
@@ -889,6 +853,7 @@ jobs:
         sparse-checkout: |
           xbemu/mac
           xbemu/package
+          xbemu/tools
     - name: Download the Mac app
       uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v4
       with:
@@ -899,6 +864,11 @@ jobs:
       with:
         name: meta
         path: meta
+    - name: Download the blank hard disk
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v4
+      with:
+        name: blank-hdd
+        path: blank
     - name: Package
       run: |
         set -euo pipefail
@@ -932,12 +902,22 @@ jobs:
         cp "$pkg/version.txt" mac-version.txt
         echo "sha256=$(sha256sum XBemu-mac-update.zip | cut -d' ' -f1)" >> mac-version.txt
         cat mac-version.txt
+        # The full package for new players: the same folder plus the OXOS
+        # BIOS and the blank console disk, which setup.sh installs
+        full="XBemu-mac-${BUILD:-test}-full.zip"
+        if [ "$PUBLISH" != true ]; then
+          full="XBemu-mac-test-full.zip"
+        fi
+        bash xbemu/tools/add-full-content.sh "$pkg" blank/xbox_hdd.qcow2 xbemu/package/oxos.txt
+        zip -qry "$full" "$pkg"
+        ls -l "$full"
     - name: Upload
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4
       with:
         name: XBemu-mac
         path: |
           XBemu-mac-update.zip
+          XBemu-mac-*-full.zip
           mac-version.txt
         compression-level: 0
 
@@ -953,7 +933,6 @@ jobs:
       GH_REPO: ${{ github.repository }}
       TAG: ${{ needs.prepare.outputs.tag }}
       PREV_TAG: ${{ needs.prepare.outputs.prev_tag }}
-      COPIED: ${{ !contains(needs.prepare.outputs.systems, 'mac') }}
     steps:
     - name: Download the Mac app
       if: contains(needs.prepare.outputs.systems, 'mac')
@@ -962,45 +941,49 @@ jobs:
         name: XBemu-mac
     - name: Copy the Mac files of the build before
       if: "!contains(needs.prepare.outputs.systems, 'mac')"
-      run: gh release download "$PREV_TAG" --pattern mac-version.txt --pattern XBemu-mac-update.zip
-    - name: Add the Mac section to the release notes
+      run: gh release download "$PREV_TAG" --pattern mac-version.txt --pattern XBemu-mac-update.zip --pattern 'XBemu-mac-*-full.zip'
+    - name: Clone the notes script
       if: needs.prepare.outputs.publish == 'true'
-      run: |
-        set -euo pipefail
-        trap 'echo "::error::line $LINENO: $BASH_COMMAND"' ERR
-        gh release view "$TAG" --json body --jq .body > notes.md
-        {
-          echo
-          echo "### Mac"
-          echo
-          if [ "$COPIED" = true ]; then
-            echo "Unchanged: the Mac files of build ${PREV_TAG#xbemu-}, so Macs are not offered anything new."
-            echo
-          fi
-          echo "For Apple Silicon Macs with macOS 14 or newer and Intel Macs with macOS 11 or newer."
-          echo
-          echo "**Already playing on a Mac?** XBemu offers this build by itself a few seconds after it starts: click **Update now**. It closes, installs the build and opens again. Your console, Xbox Live sign-in, saves, settings and games are not touched."
-          echo
-          echo "To update by hand, download \`XBemu-mac-update.zip\`, unzip it in Downloads and paste the Terminal line from its README.txt."
-          echo
-          echo "**New on a Mac?** Get the full Mac package from where XBemu is shared. This download has no Xbox BIOS, dashboard or game files."
-          echo
-          echo "| File | What it is |"
-          echo "|---|---|"
-          echo "| \`XBemu-mac-update.zip\` | The Mac app, its setup script and the shader list |"
-          echo "| \`mac-version.txt\` | What the Mac app reads to find this build |"
-        } >> notes.md
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
+      with:
+        ref: ${{ needs.prepare.outputs.commit }}
+        path: repo
+        sparse-checkout: |
+          xbemu/tools
+    - name: Download release notes
+      if: needs.prepare.outputs.publish == 'true'
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v4
+      with:
+        name: meta
+        path: meta
     - name: Publish
       run: |
-        if ! out=$(gh release upload "$TAG" XBemu-mac-update.zip \
-            mac-version.txt 2>&1); then
+        set -euo pipefail
+        files=(XBemu-mac-update.zip mac-version.txt)
+        full=$(ls XBemu-mac-*-full.zip 2>/dev/null | head -n 1 || true)
+        if [ -n "$full" ]; then
+          files+=("$full")
+        fi
+        if ! out=$(gh release upload "$TAG" "${files[@]}" 2>&1); then
           echo "::error::$(echo "$out" | tr '\n' ' ')"
           exit 1
         fi
         echo "$out"
-        if [ -f notes.md ]; then
-          gh release edit "$TAG" --notes-file notes.md
-        fi
+    # The whole notes again, now with this system's download in the table
+    - name: Write the release notes again
+      if: needs.prepare.outputs.publish == 'true'
+      env:
+        SYSTEMS: ${{ needs.prepare.outputs.systems }}
+        IMAGES_REF: ${{ needs.prepare.outputs.commit }}
+      run: |
+        set -euo pipefail
+        trap 'echo "::error::line $LINENO: $BASH_COMMAND"' ERR
+        mkdir -p rel
+        gh release download "$TAG" --pattern version.txt --dir rel
+        mapfile -t assets < <(gh release view "$TAG" --json assets --jq '.assets[].name')
+        bash repo/xbemu/tools/release-notes.sh rel/version.txt meta/changes.md "${assets[@]}" > notes.md
+        cat notes.md
+        gh release edit "$TAG" --notes-file notes.md
 
   # xemu's own Linux build steps (build-linux.yml), x86_64 release only. The
   # app is the AppDir linuxdeploy makes (the program with its libraries, run
@@ -1126,6 +1109,7 @@ jobs:
         sparse-checkout: |
           xbemu/linux
           xbemu/package
+          xbemu/tools
     - name: Download the Linux app
       uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v4
       with:
@@ -1135,6 +1119,11 @@ jobs:
       with:
         name: meta
         path: meta
+    - name: Download the blank hard disk
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v4
+      with:
+        name: blank-hdd
+        path: blank
     - name: Package
       run: |
         set -euo pipefail
@@ -1167,12 +1156,22 @@ jobs:
         cp "$pkg/version.txt" linux-version.txt
         echo "sha256=$(sha256sum XBemu-linux-update.tar.gz | cut -d' ' -f1)" >> linux-version.txt
         cat linux-version.txt
+        # The full package for new players: the same folder plus the OXOS
+        # BIOS and the blank console disk, which setup.sh installs
+        full="XBemu-linux-${BUILD:-test}-full.tar.gz"
+        if [ "$PUBLISH" != true ]; then
+          full="XBemu-linux-test-full.tar.gz"
+        fi
+        bash xbemu/tools/add-full-content.sh "$pkg" blank/xbox_hdd.qcow2 xbemu/package/oxos.txt
+        tar -czf "$full" "$pkg"
+        ls -l "$full"
     - name: Upload
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4
       with:
         name: XBemu-linux
         path: |
           XBemu-linux-update.tar.gz
+          XBemu-linux-*-full.tar.gz
           linux-version.txt
         compression-level: 0
 
@@ -1190,7 +1189,6 @@ jobs:
       GH_REPO: ${{ github.repository }}
       TAG: ${{ needs.prepare.outputs.tag }}
       PREV_TAG: ${{ needs.prepare.outputs.prev_tag }}
-      COPIED: ${{ !contains(needs.prepare.outputs.systems, 'linux') }}
     steps:
     - name: Download the Linux app
       if: contains(needs.prepare.outputs.systems, 'linux')
@@ -1199,42 +1197,46 @@ jobs:
         name: XBemu-linux
     - name: Copy the Linux files of the build before
       if: "!contains(needs.prepare.outputs.systems, 'linux')"
-      run: gh release download "$PREV_TAG" --pattern linux-version.txt --pattern XBemu-linux-update.tar.gz
-    - name: Add the Linux section to the release notes
+      run: gh release download "$PREV_TAG" --pattern linux-version.txt --pattern XBemu-linux-update.tar.gz --pattern 'XBemu-linux-*-full.tar.gz'
+    - name: Clone the notes script
       if: needs.prepare.outputs.publish == 'true'
-      run: |
-        set -euo pipefail
-        trap 'echo "::error::line $LINENO: $BASH_COMMAND"' ERR
-        gh release view "$TAG" --json body --jq .body > notes.md
-        {
-          echo
-          echo "### Linux"
-          echo
-          if [ "$COPIED" = true ]; then
-            echo "Unchanged: the Linux files of build ${PREV_TAG#xbemu-}, so Linux players are not offered anything new."
-            echo
-          fi
-          echo "For 64-bit PCs and the Steam Deck with a Linux from 2022 or later (Ubuntu 22.04, Fedora 36, SteamOS 3...)."
-          echo
-          echo "**Already playing on Linux?** XBemu offers this build by itself a few seconds after it starts: click **Update now**. It closes, installs the build and opens again. Your console, Xbox Live sign-in, saves, settings and games are not touched."
-          echo
-          echo "To update by hand, download \`XBemu-linux-update.tar.gz\`, unpack it and run \`bash setup.sh\` in its folder."
-          echo
-          echo "**New on Linux?** Get the full Linux package from where XBemu is shared. This download has no Xbox BIOS, dashboard or game files."
-          echo
-          echo "| File | What it is |"
-          echo "|---|---|"
-          echo "| \`XBemu-linux-update.tar.gz\` | The Linux app, its setup script and the shader list |"
-          echo "| \`linux-version.txt\` | What the Linux app reads to find this build |"
-        } >> notes.md
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
+      with:
+        ref: ${{ needs.prepare.outputs.commit }}
+        path: repo
+        sparse-checkout: |
+          xbemu/tools
+    - name: Download release notes
+      if: needs.prepare.outputs.publish == 'true'
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v4
+      with:
+        name: meta
+        path: meta
     - name: Publish
       run: |
-        if ! out=$(gh release upload "$TAG" XBemu-linux-update.tar.gz \
-            linux-version.txt 2>&1); then
+        set -euo pipefail
+        files=(XBemu-linux-update.tar.gz linux-version.txt)
+        full=$(ls XBemu-linux-*-full.tar.gz 2>/dev/null | head -n 1 || true)
+        if [ -n "$full" ]; then
+          files+=("$full")
+        fi
+        if ! out=$(gh release upload "$TAG" "${files[@]}" 2>&1); then
           echo "::error::$(echo "$out" | tr '\n' ' ')"
           exit 1
         fi
         echo "$out"
-        if [ -f notes.md ]; then
-          gh release edit "$TAG" --notes-file notes.md
-        fi
+    # The whole notes again, now with this system's download in the table
+    - name: Write the release notes again
+      if: needs.prepare.outputs.publish == 'true'
+      env:
+        SYSTEMS: ${{ needs.prepare.outputs.systems }}
+        IMAGES_REF: ${{ needs.prepare.outputs.commit }}
+      run: |
+        set -euo pipefail
+        trap 'echo "::error::line $LINENO: $BASH_COMMAND"' ERR
+        mkdir -p rel
+        gh release download "$TAG" --pattern version.txt --dir rel
+        mapfile -t assets < <(gh release view "$TAG" --json assets --jq '.assets[].name')
+        bash repo/xbemu/tools/release-notes.sh rel/version.txt meta/changes.md "${assets[@]}" > notes.md
+        cat notes.md
+        gh release edit "$TAG" --notes-file notes.md

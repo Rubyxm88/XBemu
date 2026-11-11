@@ -12,12 +12,13 @@ You need:
 - A 64-bit PC (x86_64) with a desktop Linux from 2022 or later: Ubuntu
   22.04, Linux Mint 21, Fedora 36, SteamOS 3, Arch... and graphics drivers
   with OpenGL 4.0 or Vulkan (any graphics card from the last ten years).
-- The full Linux package (XBemu-linux-...-full.tar.gz), from
-  where XBemu is shared. It has the app and the Xbox files.
+- The full Linux package (XBemu-linux-...-full.tar.gz) from
+  https://github.com/Rubyxm88/XBemu/releases/latest
+  It has the app, the OXOS BIOS and a new blank console.
 - Your game disc images (.iso).
 
-1. Download the full package. Google Drive says it "can't scan this file for
-   viruses" because the file is large: click Download anyway.
+1. Download the full package: on the page above, under Download, click
+   XBemu-linux-...-full.tar.gz.
 
 2. Unpack it: right-click it in your file manager and choose Extract Here
    (Steam Deck: switch to Desktop Mode first, then use Dolphin). You get a
