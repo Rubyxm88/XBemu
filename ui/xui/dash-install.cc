@@ -413,8 +413,8 @@ void DashInstallDraw()
 
         ImGui::Dummy(ImVec2(0, 10.0f * scale));
         ImGui::PushStyleColor(ImGuiCol_Text, dim);
-        ImGui::TextWrapped("XBL Dashboard becomes your console's dashboard; "
-                           "the original one is kept as a backup.");
+        ImGui::TextWrapped("XBL Dashboard becomes your console's dashboard. "
+                           "Don't close XBemu while it installs.");
         ImGui::PopStyleColor();
         ImGui::PopFont();
     }
@@ -426,8 +426,11 @@ extern "C" {
 
 bool xemu_dashinstall_wanted(void)
 {
+    // A blank disk (XBemu's, no dashboard at all) gets it too
+    int main_dash = xemu_xbonline_main_dashboard();
     return xemu_xbonline_install_disc() &&
-           xemu_xbonline_main_dashboard() == XBONLINE_DASH_STOCK &&
+           (main_dash == XBONLINE_DASH_STOCK ||
+            main_dash == XBONLINE_DASH_NONE) &&
            // Switched back to the old dashboard: the XBL one is its backup
            xemu_xbonline_backup_dashboard() != XBONLINE_DASH_XBL &&
            g_config.general.xbl_dash_install_tries < MAX_AUTO_TRIES &&
