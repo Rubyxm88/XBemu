@@ -1,0 +1,5 @@
+# Fixes for the published release xbemu-3 (see .github/workflows/xbemu-fix-release.yml)
+change=XBemu looks for new OXOS BIOS versions once a day and asks before updating; each says whether it was tested with XBemu
+change=Machine > BIOS (now on Windows, Mac and Linux) lists the last three OXOS versions: choose one to switch back, or check for a new one
+change=If XBemu is closed soon after a BIOS update, the next start offers to go back
+change=Mac and Linux now get OXOS updates too
