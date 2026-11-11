@@ -332,12 +332,17 @@ REPORT
 # The applications menu entries and the icon
 install_menu() {
     mkdir -p "$menu" "$icons/256x256/apps"
-    if [ -f "$app/xemu.png" ]; then
-        cp "$app/xemu.png" "$icons/256x256/apps/xbemu.png"
-    elif [ -f "$app/usr/share/icons/hicolor/256x256/apps/xemu.png" ]; then
+    local icon=xbemu
+    if [ -f "$app/usr/share/icons/hicolor/256x256/apps/xemu.png" ]; then
         cp "$app/usr/share/icons/hicolor/256x256/apps/xemu.png" \
             "$icons/256x256/apps/xbemu.png"
+        # A full path: a name only shows once the desktop has refreshed its
+        # icon cache, which some (Mint, Ubuntu) do only after signing out
+        cp "$app/usr/share/icons/hicolor/256x256/apps/xemu.png" "$data/xbemu.png"
+        icon="$data/xbemu.png"
     fi
+    command -v gtk-update-icon-cache >/dev/null 2>&1 &&
+        gtk-update-icon-cache -q -t "$icons" >/dev/null 2>&1 || true
     report_tool > "$data/report.sh"
     chmod 755 "$data/report.sh"
     cat > "$menu/xbemu.desktop" <<EOF
@@ -346,7 +351,7 @@ Type=Application
 Name=XBemu
 Comment=Original Xbox on XB Online
 Exec="$app/AppRun"
-Icon=xbemu
+Icon=$icon
 Terminal=false
 Categories=Game;Emulator;
 StartupWMClass=xemu
@@ -357,7 +362,7 @@ Type=Application
 Name=XBemu Report
 Comment=Makes a file with logs to send when XBemu has a problem
 Exec=bash "$data/report.sh"
-Icon=xbemu
+Icon=$icon
 Terminal=false
 Categories=Game;
 EOF
@@ -419,7 +424,7 @@ if [ "${1:-}" = "--uninstall" ]; then
     running && fail "quit XBemu first."
     rm -rf "$app" "$data/report.sh"
     rm -f "$menu/xbemu.desktop" "$menu/xbemu-report.desktop" \
-        "$icons/256x256/apps/xbemu.png"
+        "$icons/256x256/apps/xbemu.png" "$data/xbemu.png"
     echo "XBemu is removed. Your console and games are still in"
     echo "$data; delete that folder too to remove everything."
     exit 0
