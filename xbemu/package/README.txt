@@ -95,6 +95,15 @@ XBemu runs OXOS, the open-source Xbox BIOS (github.com/kooscode/oxos,
 GPL-2.0). It comes with XBemu in system\bios\. Some disc games freeze on it.
 XBemu has no other BIOS option. What happened is in system\bios-log.txt.
 
+New OXOS versions: XBemu looks once a day and asks before updating. Each
+one says "Tested with XBemu" or "Not tested with XBemu yet". The download is
+checked against the release's SHA-256.
+
+Going back: Machine > BIOS lists the OXOS versions on this computer (the
+last three are kept). Choose one and XBemu restarts with it. If XBemu is
+closed soon after an update, the next start offers to go back. Your choice
+stays until an XBemu update brings a newer tested version.
+
 
 SHADERS
 -------

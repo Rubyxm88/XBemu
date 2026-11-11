@@ -579,6 +579,40 @@ static void EndPrompt()
     ImGui::End();
 }
 
+// Tests answer the prompts without a mouse: XBEMU_OXOS_TEST_ANSWER lists
+// buttons by their first word, lower case ("update,later"), pressed in
+// order once a prompt has shown for 4 seconds
+static double prompt_since = 0;
+static guint answers_used = 0;
+
+static bool PromptButton(const char *label, const char *key = NULL)
+{
+    if (ImGui::Button(label)) {
+        return true;
+    }
+    const char *env = getenv("XBEMU_OXOS_TEST_ANSWER");
+    if (!env || ImGui::GetTime() - prompt_since < 4.0) {
+        return false;
+    }
+    gchar **list = g_strsplit(env, ",", -1);
+    bool hit = false;
+    if (answers_used < g_strv_length(list)) {
+        std::string name = key ? key : label;
+        name = name.substr(0, name.find(' '));
+        for (auto &c : name) {
+            c = g_ascii_tolower(c);
+        }
+        if (name == list[answers_used]) {
+            hit = true;
+            answers_used++;
+            prompt_since = ImGui::GetTime();
+            fprintf(stderr, "oxos: test pressed %s\n", label);
+        }
+    }
+    g_strfreev(list);
+    return hit;
+}
+
 static void Heading(const std::string &text)
 {
     ImGui::PushFont(g_font_mgr.m_menu_font_medium);
@@ -623,15 +657,15 @@ void OxosWindow::DrawOffer()
     ImGui::Spacing();
     ImGui::Separator();
     ImGui::Spacing();
-    if (ImGui::Button("Update")) {
+    if (PromptButton("Update")) {
         StartDownload(m_offer);
     }
     ImGui::SameLine();
-    if (ImGui::Button("Not now")) {
+    if (PromptButton("Not now")) {
         m_prompt = NONE;
     }
     ImGui::SameLine();
-    if (ImGui::Button("Skip this version")) {
+    if (PromptButton("Skip this version")) {
         Keys c = Choice();
         c["skip"] = tag;
         SaveChoice(c);
@@ -657,11 +691,11 @@ void OxosWindow::DrawProgress()
         ImGui::TextColored(bad_color, "%s", m_error.c_str());
         ImGui::TextWrapped("The console keeps OXOS %s.", CurrentTag().c_str());
         ImGui::Spacing();
-        if (ImGui::Button("Try again")) {
+        if (PromptButton("Try again")) {
             StartDownload(m_offer);
         }
         ImGui::SameLine();
-        if (ImGui::Button("Close")) {
+        if (PromptButton("Close")) {
             m_prompt = NONE;
             m_status = IDLE;
         }
@@ -679,13 +713,13 @@ void OxosWindow::DrawRestart()
     ImGui::TextWrapped("Restart XBemu to start the console with it.");
     GameRunningWarning();
     ImGui::Spacing();
-    if (ImGui::Button("Restart now")) {
+    if (PromptButton("Restart now")) {
         m_prompt = NONE;
         m_status = IDLE;
         ActionRestartApp();
     }
     ImGui::SameLine();
-    if (ImGui::Button("Later")) {
+    if (PromptButton("Later")) {
         m_prompt = NONE;
         m_status = IDLE;
         std::string msg = "OXOS " + tag + " starts the next time you open "
@@ -717,13 +751,13 @@ void OxosWindow::DrawSwitch()
                        "sign-in, saves and games are kept.");
     GameRunningWarning();
     ImGui::Spacing();
-    if (ImGui::Button("Switch and restart")) {
+    if (PromptButton("Switch and restart")) {
         m_prompt = NONE;
         UseTag(tag, Newer(tag, cur));
         ActionRestartApp();
     }
     ImGui::SameLine();
-    if (ImGui::Button("Cancel")) {
+    if (PromptButton("Cancel")) {
         m_prompt = NONE;
     }
     EndPrompt();
@@ -742,13 +776,13 @@ void OxosWindow::DrawRollback()
                        "OXOS %s.", tag.c_str(), prev.c_str());
     ImGui::Spacing();
     std::string back = "Go back to " + prev, keep = "Keep " + tag;
-    if (ImGui::Button(back.c_str())) {
+    if (PromptButton(back.c_str(), "back")) {
         m_prompt = NONE;
         UseTag(prev, false);
         ActionRestartApp();
     }
     ImGui::SameLine();
-    if (ImGui::Button(keep.c_str())) {
+    if (PromptButton(keep.c_str(), "keep")) {
         m_prompt = NONE;
         c.erase("pending");
         c.erase("previous");
@@ -820,6 +854,11 @@ void OxosWindow::Draw()
         m_status = IDLE;
     }
 
+    static Prompt last = NONE;
+    if (m_prompt != last) {
+        last = m_prompt;
+        prompt_since = now;
+    }
     switch (m_prompt) {
     case OFFER: DrawOffer(); break;
     case PROGRESS: DrawProgress(); break;

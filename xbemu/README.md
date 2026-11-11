@@ -71,6 +71,25 @@ environment, so it needs the same approval.
 Turn the release back into a draft, or add a line `Broken: why` to its
 notes: the app shows it greyed out and never offers it.
 
+### OXOS versions
+
+Each package names the OXOS version it was tested with
+(`package/oxos.txt`). Players also get newer OXOS releases from the app: it
+looks once a day, asks, and keeps the last three for Machine > BIOS.
+`oxos-versions.txt` (read from `main` by the app, so no build is needed)
+marks versions:
+
+```
+v0.4.4 tested
+v0.4.5 broken: Halo freezes on loading
+```
+
+`tested` shows "Tested with XBemu"; `broken` is never offered. Unlisted
+versions are offered as "Not tested with XBemu yet". Editing it does not
+start the workflow. For tests: `XBEMU_OXOS_API` and `XBEMU_OXOS_LIST` (local
+copies), `XBEMU_OXOS_CHECK=1` (look at every start) and
+`XBEMU_OXOS_TEST_ANSWER=update,restart` (answers the prompts).
+
 ### New xemu releases
 
 Once a day the workflow looks for a new xemu release and, when main does not
