@@ -3,6 +3,7 @@ XBEMU
 An original Xbox emulator built on xemu, set up for Xbox Live on XB Online,
 with the XBL Dashboard and the open-source OXOS BIOS. No Microsoft files
 are included.
+Download and release notes: https://github.com/Rubyxm88/XBemu/releases/latest
 
 
 FIRST TIME
