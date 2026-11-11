@@ -58,7 +58,6 @@ on:
     branches: [main, mac-build, linux-build]
     paths-ignore:
       - '**.md'
-      - '.github/**'
       - 'xbemu/docs/**'
   schedule:
     - cron: '23 9 * * *'
@@ -435,6 +434,7 @@ jobs:
       if: steps.plan.outputs.release == 'true' && contains(steps.plan.outputs.systems, 'windows')
       run: |
         set -euo pipefail
+        sudo apt-get update -qq
         sudo apt-get install -qy qemu-utils
         python3 xbemu/tools/make-blank-hdd.py blank.raw
         mkdir -p blank
@@ -518,7 +518,7 @@ jobs:
     needs: [prepare, build, deploy]
     # Also when a partial build leaves Windows out (no xemu.exe built); a
     # published release only after its channel's environment let it through
-    if: always() && needs.prepare.outputs.release == 'true' && (needs.build.result == 'success' || needs.build.result == 'skipped') && (needs.deploy.result == 'success' || (needs.deploy.result == 'skipped' && needs.prepare.outputs.publish != 'true'))
+    if: always() && needs.prepare.result == 'success' && needs.prepare.outputs.release == 'true' && (needs.build.result == 'success' || needs.build.result == 'skipped') && (needs.deploy.result == 'success' || (needs.deploy.result == 'skipped' && needs.prepare.outputs.publish != 'true'))
     runs-on: windows-latest
     env:
       GH_TOKEN: ${{ github.token }}
