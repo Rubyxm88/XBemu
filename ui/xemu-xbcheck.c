@@ -714,8 +714,8 @@ static void check_account(void)
                  xemu_xbonline_main_dashboard() == XBONLINE_DASH_XBL ?
                  "Not signed in yet. Sign in with your xb.live account on the "
                  "XBL Dashboard (menu Play > XBL Dashboard)." :
-                 "This console has never been set up for Xbox Live. Menu: XB "
-                 "Online > XBL Dashboard (Account Setup) and add your account.");
+                 "Not signed in yet. When the XBL Dashboard has installed, "
+                 "sign in there with your xb.live account.");
     } else {
         item_set(i, XBCHECK_OK, "Console is set up. In the game, sign in with "
                  "the account the XBL Dashboard added.");
