@@ -1445,7 +1445,7 @@ class UpdateForm : Form
             progress.Visible = false;
             status.Text = "";
             string reason = e.Error is IOException || e.Error is UnauthorizedAccessException ?
-                "A file could not be replaced. Close xemu and try again.\n\n" + e.Error.Message :
+                "A file could not be replaced. Close XBemu and try again.\n\n" + e.Error.Message :
                 e.Error.Message;
             MessageBox.Show(this, "The update was not installed.\n\n" + reason,
                             "XBemu", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -1949,7 +1949,7 @@ class SetupForm : Form
         int third = (Inner - 24) / 3;
         AddNote(know, 22 + 0 * third, third - 20, "Already on xb.live?",
                 "Nothing to copy. Your account lives on xb.live; just sign in again.");
-        AddNote(know, 22 + 1 * third, third - 20, "Don't close xemu",
+        AddNote(know, 22 + 1 * third, third - 20, "Don't close XBemu",
                 "Let the XBL Dashboard finish installing the first time (about a minute).");
         AddNote(know, 22 + 2 * third, third - 20, "Saves",
                 "Saves from another xemu aren't copied. This console starts new.");

@@ -544,6 +544,14 @@ static int hdd_dashboard_kind(const char *hdd_path, const char *name)
         uint32_t file = fatx_find(&fs, 1, name, false);
         XbOnlineXbe xbe;
 
+        /* With no C:\xboxdash.xbe (a blank disk), the XBL Dashboard
+           installer puts the dashboard in C:\Dashboard\default.xbe,
+           which is what the BIOS then boots */
+        if (!file && !strcmp(name, XEMU_XBONLINE_DASH_FILE)) {
+            uint32_t dir = fatx_find(&fs, 1, "Dashboard", true);
+            file = dir ? fatx_find(&fs, dir, "default.xbe", false) : 0;
+        }
+
         result = XBONLINE_DASH_NONE;
         if (file) {
             uint8_t *data = g_malloc(fs.cluster_size);

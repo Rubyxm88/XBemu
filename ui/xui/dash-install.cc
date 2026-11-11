@@ -375,7 +375,7 @@ void DashInstallDraw()
         ImGui::PopFont();
         ImGui::PushFont(g_font_mgr.m_default_font);
         ImGui::TextColored(dim, "One time only, about a minute. Please "
-                                "don't close xemu.");
+                                "don't close XBemu.");
         ImGui::PopFont();
         ImGui::Dummy(ImVec2(0, 12.0f * scale));
         ImGui::Separator();
