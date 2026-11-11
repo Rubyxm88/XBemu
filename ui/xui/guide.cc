@@ -137,6 +137,10 @@ static const char *const account_text[] = {
 static const char *const bios_text[] = {
     "XBemu runs OXOS, the open-source Xbox BIOS (github.com/kooscode/oxos). "
     "It comes with XBemu; no Microsoft files are included.",
+    "XBemu looks for a new OXOS version once a day and asks before "
+    "updating. Each one says whether it was tested with XBemu.",
+    "Machine > BIOS lists the versions on this computer: choose one to go "
+    "back to it (XBemu restarts). Check for a new OXOS looks right away.",
     "Some disc games freeze on their loading screen with OXOS. XBemu has no "
     "other BIOS option.",
     "Game updates come through the XBL Dashboard when a game offers them.",

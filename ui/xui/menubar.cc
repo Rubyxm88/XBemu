@@ -30,6 +30,7 @@
 #include "versions.hh"
 #include "game-cache.hh"
 #include "xbcheck.hh"
+#include "oxos-update.hh"
 #include "shader-cache.hh"
 #include "viewport-manager.hh"
 #include "notifications.hh"
@@ -483,47 +484,16 @@ static void OverlayMenu()
 }
 
 // Machine: the console itself (pause, snapshots, settings, power)
-#if defined(_WIN32)
-// Machine > BIOS: shows OXOS, the open-source Xbox BIOS XBemu runs. There is
-// no other choice; the launcher sets it before xemu starts, using the version
-// the package names (system/oxos.txt).
-static std::string OxosTag()
-{
-    gchar *path = g_build_filename(xemu_settings_get_base_path(), "oxos.txt",
-                                   NULL);
-    gchar *text = NULL;
-    std::string tag;
-    if (g_file_get_contents(path, &text, NULL, NULL)) {
-        gchar **lines = g_strsplit(text, "\n", -1);
-        for (gchar **l = lines; *l; l++) {
-            g_strstrip(*l);
-            if (g_str_has_prefix(*l, "tag=")) {
-                tag = *l + 4;
-            }
-        }
-        g_strfreev(lines);
-        g_free(text);
-    }
-    g_free(path);
-    return tag;
-}
-
+// Machine > BIOS: the OXOS versions on this computer (the open-source Xbox
+// BIOS XBemu runs), switching between them and the update check
 static void BiosMenu()
 {
-    static std::string label;
-    if (label.empty()) {
-        std::string tag = OxosTag();
-        label = tag.empty() ? "OXOS" : "OXOS " + tag;
-    }
     if (!ImGui::BeginMenu("BIOS")) {
         return;
     }
-    ImGui::MenuItem(label.c_str(), NULL, true, false);
-    MenuItemHelp("OXOS, the open-source Xbox BIOS (github.com/kooscode/oxos). "
-                 "It comes with XBemu. Some disc games freeze on it.");
+    oxos_window.Menu();
     ImGui::EndMenu();
 }
-#endif
 
 static void MachineMenu(bool running)
 {
@@ -575,9 +545,7 @@ static void MachineMenu(bool running)
     ImGui::Separator();
 
     if (ImGui::MenuItem("Settings...")) g_main_menu.ShowSettings();
-#if defined(_WIN32)
     BiosMenu();
-#endif
 
     ImGui::Separator();
 

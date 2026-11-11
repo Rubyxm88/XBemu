@@ -53,6 +53,7 @@
 #include "perf-overlay.hh"
 #include "compat.hh"
 #include "xbcheck.hh"
+#include "oxos-update.hh"
 #include "shader-cache.hh"
 #include "guide.hh"
 #include "versions.hh"
@@ -454,6 +455,7 @@ void xemu_hud_update(void)
     if (!first_boot_window.is_open) shader_cache_window.Draw();
     guide_window.Draw();
     versions_window.Draw();
+    if (!first_boot_window.is_open) oxos_window.Draw();
     game_cache_window.Draw();
 #if defined(__APPLE__) || defined(__linux__)
     if (!first_boot_window.is_open) self_update_window.Draw();

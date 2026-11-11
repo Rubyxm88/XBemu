@@ -1,0 +1,9 @@
+# OXOS versions tried with XBemu. The app reads this file from GitHub (main)
+# when it looks for a new OXOS, so a change here reaches players without a
+# new XBemu build. One line per version:
+#
+#   v0.4.4 tested                      shown as "Tested with XBemu"
+#   v0.4.5 broken: Halo freezes        never offered; marked broken in the menu
+#
+# A version not listed is offered as "Not tested with XBemu yet".
+v0.4.4 tested

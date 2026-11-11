@@ -18,6 +18,7 @@ xemu_ss.add(files(
   'game-cache.cc',
   'versions.cc',
   'notifications.cc',
+  'oxos-update.cc',
   'perf-overlay.cc',
   'popup-menu.cc',
   'reporting.cc',

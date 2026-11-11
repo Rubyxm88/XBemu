@@ -88,12 +88,49 @@ is_kept() {
     return 1
 }
 
+# A key from a key=value file
+key_of() {
+    { grep -m 1 "^$1=" "$2" 2>/dev/null || true; } | cut -d= -f2- | tr -d '\r'
+}
+
+# Whether OXOS version $1 is newer than $2 (v0.4.10 > v0.4.9)
+oxos_newer() {
+    awk -v a="${1#v}" -v b="${2#v}" 'BEGIN {
+        n = split(a, x, "."); m = split(b, y, "."); k = n > m ? n : m
+        for (i = 1; i <= k; i++) {
+            if (x[i] + 0 > y[i] + 0) exit 0
+            if (x[i] + 0 < y[i] + 0) exit 1
+        }
+        exit 1 }'
+}
+
 # OXOS, the open-source BIOS XBemu runs: the version this package names in
-# system/oxos.txt, which comes with the package in system/bios/
+# system/oxos.txt, which comes with the package in system/bios/. A version
+# the player chose in Machine > BIOS (system/bios/oxos-choice.txt) stays
+# until a package brings a newer tested one.
 oxos_bios() {
-    local tag
-    tag="$({ grep -m 1 '^tag=' "$system/oxos.txt" 2>/dev/null || true; } | cut -d= -f2- | tr -d '\r')"
-    printf 'bios/oxos-%s.bin' "${tag:-v0.4.4}"
+    local tag choice pin f t newest=""
+    tag="$(key_of tag "$system/oxos.txt")"
+    tag="${tag:-v0.4.4}"
+    choice="$(key_of tag "$system/bios/oxos-choice.txt")"
+    pin="$(key_of pin "$system/bios/oxos-choice.txt")"
+    if [ -n "$choice" ] && [ -f "$system/bios/oxos-$choice.bin" ] &&
+       { [ "$pin" = "$tag" ] || ! oxos_newer "$tag" "$choice"; }; then
+        tag="$choice"
+    fi
+    if [ ! -f "$system/bios/oxos-$tag.bin" ]; then
+        # Not here: the newest OXOS that is
+        for f in "$system"/bios/oxos-v*.bin; do
+            [ -f "$f" ] || continue
+            t="${f##*/oxos-}"
+            t="${t%.bin}"
+            if [ -z "$newest" ] || oxos_newer "$t" "$newest"; then
+                newest="$t"
+            fi
+        done
+        [ -n "$newest" ] && tag="$newest"
+    fi
+    printf 'bios/oxos-%s.bin' "$tag"
 }
 
 default_settings() {

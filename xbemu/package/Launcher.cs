@@ -1078,20 +1078,66 @@ static class Bios
         get { return Pin() != null; }
     }
 
-    static Dictionary<string, string> Pin()
+    static Dictionary<string, string> ReadKeys(string path)
     {
-        var pin = new Dictionary<string, string>();
+        var keys = new Dictionary<string, string>();
         try {
-            foreach (string line in File.ReadAllLines(Sys("oxos.txt"))) {
+            foreach (string line in File.ReadAllLines(path)) {
                 int eq = line.IndexOf('=');
                 if (eq > 0) {
-                    pin[line.Substring(0, eq).Trim()] = line.Substring(eq + 1).Trim();
+                    keys[line.Substring(0, eq).Trim()] = line.Substring(eq + 1).Trim();
                 }
             }
         } catch (IOException) {
+        } catch (UnauthorizedAccessException) {
         }
+        return keys;
+    }
+
+    static Dictionary<string, string> Pin()
+    {
+        var pin = ReadKeys(Sys("oxos.txt"));
         return pin.ContainsKey("tag") && pin.ContainsKey("file") &&
                pin.ContainsKey("sha256") ? pin : null;
+    }
+
+    // "v0.4.10" -> 0, 4, 10
+    static int[] Ver(string tag)
+    {
+        return Regex.Matches(tag ?? "", @"\d+").Cast<Match>()
+            .Select(m => { int n; return int.TryParse(m.Value, out n) ? n : 0; }).ToArray();
+    }
+
+    // Whether version a is newer than b
+    public static bool Newer(string a, string b)
+    {
+        int[] x = Ver(a), y = Ver(b);
+        for (int i = 0; i < Math.Max(x.Length, y.Length); i++) {
+            int p = i < x.Length ? x[i] : 0, q = i < y.Length ? y[i] : 0;
+            if (p != q) {
+                return p > q;
+            }
+        }
+        return false;
+    }
+
+    // The version the player chose in Machine > BIOS (bios\oxos-choice.txt,
+    // written by xemu): it stays until a package brings a newer tested one.
+    // Null when there is none or it no longer applies.
+    public static string Chosen(string dir, string pinTag)
+    {
+        var choice = ReadKeys(Path.Combine(dir, "oxos-choice.txt"));
+        string tag, pinned;
+        if (!choice.TryGetValue("tag", out tag) ||
+            !Regex.IsMatch(tag, @"^v[0-9A-Za-z._-]{1,30}$") ||
+            !File.Exists(Path.Combine(dir, "oxos-" + tag + ".bin"))) {
+            return null;
+        }
+        choice.TryGetValue("pin", out pinned);
+        if (pinned != pinTag && Newer(pinTag, tag)) {
+            return null;
+        }
+        return tag;
     }
 
     static string Sha256(byte[] data)
@@ -1161,6 +1207,17 @@ static class Bios
         }
     }
 
+    static int CompareVer(int[] x, int[] y)
+    {
+        for (int i = 0; i < Math.Max(x.Length, y.Length); i++) {
+            int p = i < x.Length ? x[i] : 0, q = i < y.Length ? y[i] : 0;
+            if (p != q) {
+                return p.CompareTo(q);
+            }
+        }
+        return 0;
+    }
+
     static bool IsOxos(string path)
     {
         return path != null && Regex.IsMatch(path, @"^bios[\\/]oxos-", RegexOptions.IgnoreCase);
@@ -1205,10 +1262,22 @@ static class Bios
                     Log("bios: OXOS " + pin["tag"] + " could not be downloaded, using " + name);
                 }
             }
-            // Keep this one and the one before it
+            // The player's own choice in Machine > BIOS wins over this
+            // package's version, until a package brings a newer tested one
+            string chosen = Chosen(dir, pin["tag"]);
+            string pinned = Path.Combine(dir, "oxos-" + pin["tag"] + ".bin");
+            if (chosen != null) {
+                target = Path.Combine(dir, "oxos-" + chosen + ".bin");
+                name = Path.GetFileName(target);
+            }
+            // Keep the three newest (to go back to), the one used and this
+            // package's own
             foreach (string old in Directory.GetFiles(dir, "oxos-*.bin")
-                         .OrderByDescending(f => File.GetLastWriteTimeUtc(f)).Skip(2)) {
+                         .OrderByDescending(f => Ver(Path.GetFileNameWithoutExtension(f).Substring(5)),
+                                            Comparer<int[]>.Create(CompareVer)).Skip(3)) {
                 if (!string.Equals(Path.GetFullPath(old), Path.GetFullPath(target),
+                                   StringComparison.OrdinalIgnoreCase) &&
+                    !string.Equals(Path.GetFullPath(old), Path.GetFullPath(pinned),
                                    StringComparison.OrdinalIgnoreCase)) {
                     File.Delete(old);
                 }
