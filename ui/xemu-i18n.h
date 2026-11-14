@@ -17,6 +17,8 @@ extern "C" {
 #endif
 
 const char *xemu_i18n_tr(const char *english);
+/* True once the menus know their language (after the first frame) */
+int xemu_i18n_ready(void);
 
 #ifdef __cplusplus
 }

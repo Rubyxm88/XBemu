@@ -280,6 +280,10 @@ static const char *get_bound_driver(int port)
 
 static const int port_map[4] = { 3, 4, 1, 2 };
 
+// The keyboard bound at start: its notice waits for the language
+static ControllerState *kbd_notice_con;
+static int kbd_notice_port;
+
 void xemu_input_init(void)
 {
     if (g_config.input.background_input_capture) {
@@ -332,9 +336,9 @@ void xemu_input_init(void)
     int port = xemu_input_get_controller_default_bind_port(new_con, 0);
     if (port >= 0) {
         xemu_input_bind(port, new_con, 0);
-        char buf[128];
-        snprintf(buf, sizeof(buf), xemu_i18n_tr("Connected '%s' to port %d"), new_con->name, port+1);
-        xemu_queue_notification(buf);
+        // Told once the menus know their language (first frame)
+        kbd_notice_con = new_con;
+        kbd_notice_port = port;
         xemu_input_rebind_xmu(port);
     }
 
@@ -583,6 +587,13 @@ void xemu_input_update_controller(ControllerState *state)
 void xemu_input_update_controllers(void)
 {
     ControllerState *iter;
+    if (kbd_notice_con && xemu_i18n_ready()) {
+        char buf[128];
+        snprintf(buf, sizeof(buf), xemu_i18n_tr("Connected '%s' to port %d"),
+                 kbd_notice_con->name, kbd_notice_port + 1);
+        xemu_queue_notification(buf);
+        kbd_notice_con = NULL;
+    }
     QTAILQ_FOREACH(iter, &available_controllers, entry) {
         xemu_input_update_controller(iter);
     }

@@ -185,6 +185,13 @@ static const std::string *Find(const char *s, size_t n)
     return &t.text[it->second];
 }
 
+static int s_decided; // the first I18nUpdate has picked the language
+
+int xemu_i18n_ready(void)
+{
+    return __atomic_load_n(&s_decided, __ATOMIC_ACQUIRE);
+}
+
 // From any thread (see ui/xemu-i18n.h): whole texts only, nothing logged
 const char *xemu_i18n_tr(const char *english)
 {
@@ -457,6 +464,7 @@ void I18nUpdate()
         }
     }
     if (want == s_cur) {
+        __atomic_store_n(&s_decided, 1, __ATOMIC_RELEASE);
         return;
     }
     s_cur = want;
@@ -464,6 +472,7 @@ void I18nUpdate()
     s_composed.clear();
     GImGuiTranslate = s_cur ? TranslateHook : NULL;
     fprintf(stderr, "language: %s\n", kLangs[s_cur].code);
+    __atomic_store_n(&s_decided, 1, __ATOMIC_RELEASE);
     // The notice tells about the automatic switch; a language picked by
     // hand needs no telling
     s_notice_open =
