@@ -15,6 +15,7 @@
 #include "../xemu-notifications.h"
 #include "../xbemu-brand.h"
 #include "qemu/http.h"
+#include "../xemu-running-title.h"
 #include "util/miniz/miniz.h"
 #include <nlohmann/json.hpp>
 #include <glib/gstdio.h>
@@ -623,8 +624,8 @@ static void Heading(const std::string &text)
 
 static void GameRunningWarning()
 {
-    if (runstate_is_running() && g_config.sys.files.dvd_path &&
-        g_config.sys.files.dvd_path[0]) {
+    // A game, not the dashboard with a disc in the tray
+    if (xemu_running_title_get(NULL)) {
         ImGui::Spacing();
         ImGui::TextColored(bad_color, "A game is running: anything not saved "
                                       "in it is lost when XBemu restarts.");

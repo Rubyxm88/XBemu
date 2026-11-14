@@ -108,6 +108,31 @@ typedef struct SMBusSMCDevice {
     uint8_t error_reg;
 } SMBusSMCDevice;
 
+/* Test aid: XEMU_SMC_TRACE logs what the console asks the SMC about the
+ * tray (writes, and tray/interrupt reads when their value changes) */
+static bool smc_trace(void)
+{
+    static int on = -1;
+    if (on < 0) {
+        on = getenv("XEMU_SMC_TRACE") != NULL;
+    }
+    return on;
+}
+
+static void smc_trace_read(bool tray, uint8_t value)
+{
+    static int last_tray = -1;
+    if (!smc_trace()) {
+        return;
+    }
+    if (!tray && value) {
+        fprintf(stderr, "smc trace: read intstatus 0x%02x\n", value);
+    } else if (tray && value != last_tray) {
+        fprintf(stderr, "smc trace: read tray 0x%02x\n", value);
+        last_tray = value;
+    }
+}
+
 static void smc_quick_cmd(SMBusDevice *dev, uint8_t read)
 {
     DPRINTF("smc_quick_cmd: addr=0x%02x read=%d\n", dev->i2c.address, read);
@@ -126,6 +151,10 @@ static int smc_write_data(SMBusDevice *dev, uint8_t *buf, uint8_t len)
 
     DPRINTF("smc_write_byte: addr=0x%02x cmd=0x%02x val=0x%02x\n",
            dev->i2c.address, cmd, buf[0]);
+    if (smc_trace()) {
+        fprintf(stderr, "smc trace: write cmd 0x%02x val 0x%02x\n", cmd,
+                buf[0]);
+    }
 
     switch (cmd) {
     case SMC_REG_VER:
@@ -177,6 +206,7 @@ static uint8_t smc_receive_byte(SMBusDevice *dev)
             smc->version_string_index++ % SMC_VERSION_LENGTH];
 
     case SMC_REG_TRAYSTATE:
+        smc_trace_read(true, smc->traystate_reg);
         return smc->traystate_reg;
 
     case SMC_REG_SCRATCH:
@@ -191,6 +221,7 @@ static uint8_t smc_receive_byte(SMBusDevice *dev)
     case SMC_REG_INTSTATUS: {
         uint8_t r = smc->intstatus_reg;
         smc->intstatus_reg = 0; // FIXME: Confirm clear on read
+        smc_trace_read(false, r);
         return r;
     }
 

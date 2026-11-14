@@ -35,6 +35,8 @@
 #include "qemu-version.h"
 #include "qapi/error.h"
 #include "qapi/qapi-commands-block.h"
+#include "system/block-backend.h"
+#include "qemu/timer.h"
 #include "qobject/qdict.h"
 #include "ui/console.h"
 #include "ui/input.h"
@@ -1818,10 +1820,85 @@ int main(int argc, char **argv)
     return exit_status;
 }
 
+// A disc change waiting for its new disc to go in (xemu_change_disc)
+static QEMUTimer *swap_timer;
+static char *swap_path;
+
+static void swap_cancel(void)
+{
+    if (swap_timer) {
+        timer_del(swap_timer);
+    }
+    g_free(swap_path);
+    swap_path = NULL;
+}
+
+static void load_disc_now(const char *path, Error **errp);
+
+static void swap_insert(void *opaque)
+{
+    char *path = swap_path;
+    swap_path = NULL;
+    if (!path) {
+        return;
+    }
+    Error *err = NULL;
+    load_disc_now(path, &err);
+    if (err) {
+        xemu_queue_error_message(error_get_pretty(err));
+        error_free(err);
+    } else {
+        fprintf(stderr, "disc change: %s is in\n", path);
+    }
+    g_free(path);
+}
+
+// Changes the disc the way a player does on a real Xbox: the tray opens, the
+// old disc comes out, the new one goes in and the tray closes. Dashboards and
+// games look for a new disc only after they have seen the tray open, so
+// swapping one image for another in a single step went unnoticed (the XBL
+// Dashboard kept showing the first disc). With the tray empty the disc goes
+// in at once.
+void xemu_change_disc(const char *path, Error **errp)
+{
+    BlockBackend *blk = blk_by_name("ide0-cd1");
+    bool has_disc = swap_path || (blk && blk_is_inserted(blk));
+    if (!has_disc || getenv("XEMU_DISC_SWAP_INSTANT")) {
+        xemu_load_disc(path, errp);
+        return;
+    }
+    if (!g_file_test(path, G_FILE_TEST_IS_REGULAR)) {
+        error_setg(errp, "Could not open the disc image %s", path);
+        return;
+    }
+    if (!swap_path) {
+        Error *err = NULL;
+        xemu_eject_disc(&err);
+        if (err) {
+            // The tray is locked: as before, in one step
+            fprintf(stderr, "disc change: %s, changing at once\n",
+                    error_get_pretty(err));
+            error_free(err);
+            xemu_load_disc(path, errp);
+            return;
+        }
+    }
+    g_free(swap_path);
+    swap_path = g_strdup(path);
+    // The menus show the new disc right away
+    xemu_settings_set_string(&g_config.sys.files.dvd_path, path);
+    if (!swap_timer) {
+        swap_timer = timer_new_ms(QEMU_CLOCK_REALTIME, swap_insert, NULL);
+    }
+    timer_mod(swap_timer, qemu_clock_get_ms(QEMU_CLOCK_REALTIME) + 2000);
+    fprintf(stderr, "disc change: tray open, %s goes in in 2 s\n", path);
+}
+
 void xemu_eject_disc(Error **errp)
 {
     Error *error = NULL;
 
+    swap_cancel();
     xbox_smc_eject_button();
     xemu_settings_set_string(&g_config.sys.files.dvd_path, "");
 
@@ -1835,6 +1912,12 @@ void xemu_eject_disc(Error **errp)
 }
 
 void xemu_load_disc(const char *path, Error **errp)
+{
+    swap_cancel();
+    load_disc_now(path, errp);
+}
+
+static void load_disc_now(const char *path, Error **errp)
 {
     Error *error = NULL;
 

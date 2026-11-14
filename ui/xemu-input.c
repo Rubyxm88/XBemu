@@ -519,6 +519,42 @@ void xemu_input_update_controller(ControllerState *state)
         xemu_input_update_sdl_controller_state(state);
     }
 
+    /* Test aid: XEMU_TEST_PAD_FILE names a file holding a button name (a,
+     * b, x, y, start, back, up, down, left, right). Each time it appears the
+     * button is held for 200 ms on every controller and the file deleted,
+     * so a test can move through the dashboard without a mouse or focus. */
+    static const char *pad_file;
+    static bool pad_checked;
+    static int64_t pad_poll_us, pad_until_us;
+    static uint32_t pad_bits;
+    if (!pad_checked) {
+        pad_checked = true;
+        pad_file = getenv("XEMU_TEST_PAD_FILE");
+    }
+    if (pad_file && now - pad_poll_us > 250000) {
+        pad_poll_us = now;
+        gchar *text = NULL;
+        if (g_file_get_contents(pad_file, &text, NULL, NULL)) {
+            g_remove(pad_file);
+            static const char *const names[] = {
+                "a", "b", "x", "y", "left", "up", "right", "down", "back",
+                "start",
+            };
+            g_strstrip(text);
+            for (int i = 0; i < (int)ARRAY_SIZE(names); i++) {
+                if (!strcmp(text, names[i])) {
+                    pad_bits = 1u << i;
+                    pad_until_us = now + 200000;
+                    fprintf(stderr, "test pad: %s\n", text);
+                }
+            }
+            g_free(text);
+        }
+    }
+    if (now < pad_until_us) {
+        state->buttons |= pad_bits;
+    }
+
     state->last_input_updated_ts = qemu_clock_get_us(QEMU_CLOCK_REALTIME);
 }
 

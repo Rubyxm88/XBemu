@@ -36,6 +36,9 @@ void xemu_toggle_fullscreen(void);
 SDL_Window *xemu_get_window(void);
 void xemu_eject_disc(Error **errp);
 void xemu_load_disc(const char *path, Error **errp);
+// A player changing discs: tray open, then the new disc in (2 s later when
+// a disc was in)
+void xemu_change_disc(const char *path, Error **errp);
 void xemu_main_loop_lock(void);
 void xemu_main_loop_unlock(void);
 
