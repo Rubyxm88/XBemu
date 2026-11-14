@@ -41,6 +41,8 @@ std::string TrF(const char *fmt, ...) G_GNUC_PRINTF(1, 2);
 // The notice shown once per language, and the report window
 void I18nDraw();
 void I18nOpenReport();
+// Help > Language: Automatic or a fixed language (display.ui.language)
+void I18nDrawLanguageMenu();
 
 // Help menu: "Show me" opens it and flashes this item for a few seconds
 extern const char *const kI18nReportItem;

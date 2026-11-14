@@ -825,6 +825,15 @@ void MainMenuDisplayView::Draw()
             g_config.display.ui.scale = ui_scale_idx;
         }
     }
+    ChevronCombo("Language", &g_config.display.ui.language,
+                 "Automatic "
+                 "English "
+                 "Deutsch "
+                 "FranÃ§" "ais "
+                 "EspaÃ±ol "
+                 "Italiano "
+                 "PortuguÃª" "s ",
+                 "Automatic follows the console's language");
     Toggle("Animations", &g_config.display.ui.use_animations,
            "Enable XBemu user interface animations");
     ChevronCombo("Display mode", &g_config.display.ui.fit,

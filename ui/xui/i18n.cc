@@ -234,6 +234,43 @@ static bool HasLetter(const char *s, size_t n)
     return false;
 }
 
+// For the missing-text log: the hook also sees what was already translated
+// (and texts printed from a translated format), and texts that are never
+// translated. True for those.
+static bool IsOutput(const char *s, size_t n)
+{
+    static int built = -1;
+    static std::unordered_set<uint64_t> whole;
+    static std::vector<std::string> starts; // translated formats up to the %
+    if (built != s_cur) {
+        built = s_cur;
+        whole.clear();
+        starts.clear();
+        const Table &t = s_tables[s_cur];
+        for (const std::string &x : t.text) {
+            whole.insert(Hash(x.data(), x.size()));
+            size_t pct = x.find('%');
+            if (pct != std::string::npos && pct >= 4) {
+                starts.push_back(x.substr(0, pct));
+            }
+        }
+        for (const Lang &l : kLangs) {
+            whole.insert(Hash(l.name, strlen(l.name)));
+        }
+        // ImGui's own fallback window, never seen
+        whole.insert(Hash("Debug", 5));
+    }
+    if (whole.count(Hash(s, n))) {
+        return true;
+    }
+    for (const std::string &x : starts) {
+        if (n >= x.size() && !memcmp(s, x.data(), x.size())) {
+            return true;
+        }
+    }
+    return false;
+}
+
 // The translation of [s, s + n) or NULL; the result stays valid
 static const char *Translate(const char *s, size_t n, size_t *out_n)
 {
@@ -267,7 +304,7 @@ static const char *Translate(const char *s, size_t n, size_t *out_n)
             return it->second.c_str();
         }
     }
-    if (s_log_missing && HasLetter(s, n)) {
+    if (s_log_missing && n >= 3 && HasLetter(s, n) && !IsOutput(s, n)) {
         uint64_t h = Hash(s, n);
         if (s_missing_logged.insert(h).second) {
             std::string text(s, n);
@@ -395,7 +432,9 @@ void I18nUpdate()
         I18nInit();
     }
     int want = s_cur;
+    int fixed = g_config.display.ui.language; // 0 = auto, then kLangs + 1
     const char *env = getenv("XEMU_LANGUAGE");
+    bool chosen = true; // picked by hand, not taken from the console
     if (env && *env) {
         want = 0;
         for (int l = 0; l < kLangCount; l++) {
@@ -403,7 +442,10 @@ void I18nUpdate()
                 want = l;
             }
         }
+    } else if (fixed > 0 && fixed <= kLangCount) {
+        want = fixed - 1;
     } else {
+        chosen = false;
         uint32_t lang;
         if (xbox_language_get(&lang)) {
             want = 0; // Japanese, Korean and Chinese: English for now
@@ -422,9 +464,29 @@ void I18nUpdate()
     s_composed.clear();
     GImGuiTranslate = s_cur ? TranslateHook : NULL;
     fprintf(stderr, "language: %s\n", kLangs[s_cur].code);
-    s_notice_open = s_cur != 0 && !Noticed(kLangs[s_cur].code);
+    // The notice tells about the automatic switch; a language picked by
+    // hand needs no telling
+    s_notice_open =
+        s_cur != 0 && !chosen && !Noticed(kLangs[s_cur].code);
     if (s_cur == 0) {
         s_report_open = false;
+    }
+}
+
+// Help > Language: Automatic (the console's) or one fixed language. The
+// names stay in their own language so each can be found in any language.
+void I18nDrawLanguageMenu()
+{
+    int &cfg = g_config.display.ui.language;
+    if (ImGui::MenuItem("Automatic (console language)", NULL, cfg == 0)) {
+        cfg = 0;
+    }
+    ImGui::Separator();
+    for (int l = 0; l < kLangCount; l++) {
+        // Drawn untranslated: the hook would leave these alone anyway
+        if (ImGui::MenuItem(kLangs[l].name, NULL, cfg == l + 1)) {
+            cfg = l + 1;
+        }
     }
 }
 
@@ -492,6 +554,13 @@ static void DrawNotice()
     ImGui::Spacing();
     ImGui::TextWrapped("XBemu now uses your console's language. The XBL "
                        "Dashboard sets it in its settings.");
+    ImGui::Spacing();
+    ImGui::TextWrapped("To keep one language no matter what the console "
+                       "uses, pick it here:");
+    ImGui::TextColored(ImVec4(0.36f, 0.82f, 0.38f, 1.0f), "%s",
+                       (std::string(Tr("Help")) + "  >  " +
+                        Tr("Language"))
+                           .c_str());
     ImGui::Spacing();
     ImGui::TextWrapped("This translation is new and may have mistakes. If "
                        "something reads wrong or is cut off, please tell "

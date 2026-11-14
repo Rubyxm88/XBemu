@@ -999,6 +999,12 @@ static void HelpMenu()
     if (ImGui::MenuItem("Versions & Updates...")) {
         versions_window.Open();
     }
+    if (ImGui::BeginMenu("Language")) {
+        I18nDrawLanguageMenu();
+        ImGui::EndMenu();
+    }
+    MenuItemHelp("Automatic follows the console's language (set in the "
+                 "XBL Dashboard). Pick one to keep it no matter what.");
     if (!I18nIsEnglish()) {
         bool flash = I18nFlashReportItem();
         if (ImGui::MenuItem(kI18nReportItem)) {

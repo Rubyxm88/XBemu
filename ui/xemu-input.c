@@ -30,6 +30,7 @@
 #include "qemu/config-file.h"
 
 #include "xemu-input.h"
+#include "xemu-i18n.h"
 #include "xemu-notifications.h"
 #include "xemu-settings.h"
 #include <stdio.h>
@@ -332,7 +333,7 @@ void xemu_input_init(void)
     if (port >= 0) {
         xemu_input_bind(port, new_con, 0);
         char buf[128];
-        snprintf(buf, sizeof(buf), "Connected '%s' to port %d", new_con->name, port+1);
+        snprintf(buf, sizeof(buf), xemu_i18n_tr("Connected '%s' to port %d"), new_con->name, port+1);
         xemu_queue_notification(buf);
         xemu_input_rebind_xmu(port);
     }
@@ -455,7 +456,7 @@ void xemu_input_process_sdl_events(const SDL_Event *event)
 
         if (did_bind) {
             char buf[128];
-            snprintf(buf, sizeof(buf), "Connected '%s' to port %d", new_con->name, port+1);
+            snprintf(buf, sizeof(buf), xemu_i18n_tr("Connected '%s' to port %d"), new_con->name, port+1);
             xemu_queue_notification(buf);
             xemu_input_rebind_xmu(port);
         }
@@ -993,14 +994,14 @@ void xemu_input_rebind_xmu(int port)
                     bool did_bind = xemu_input_bind_xmu(port, i, param, true);
                     if (did_bind) {
                         char *buf =
-                            g_strdup_printf("Connected XMU %s to port %d%c",
+                            g_strdup_printf(xemu_i18n_tr("Connected XMU %s to port %d%c"),
                                             param, port + 1, 'A' + i);
                         xemu_queue_notification(buf);
                         g_free(buf);
                     }
                 } else {
                     char *buf =
-                        g_strdup_printf("Unable to bind XMU at %s to port %d%c",
+                        g_strdup_printf(xemu_i18n_tr("Unable to bind XMU at %s to port %d%c"),
                                         param, port + 1, 'A' + i);
                     xemu_queue_error_message(buf);
                     g_free(buf);

@@ -346,6 +346,10 @@ display:
     auto_scale:
       type: bool
       default: true
+    language:
+      type: enum
+      values: [auto, en, de, fr, es, it, pt]
+      default: auto
   debug:
     video:
       transparency:
