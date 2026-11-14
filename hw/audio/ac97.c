@@ -968,6 +968,32 @@ static void nabm_writel(void *opaque, uint32_t addr, uint32_t val)
     }
 }
 
+#ifdef XBOX
+/* xemu: the UI's sound duck (hw/xbox/mcpx/apu/monitor.c). Homebrew dashboards
+ * such as the XBL Dash play their menu sounds straight to the AC97 PCM out,
+ * not through the APU, so the duck goes on these samples too. Ramped over
+ * each buffer: no pop. */
+extern float xemu_audio_duck;
+
+static void ac97_duck(uint8_t *buf, int len)
+{
+    static float last_duck = 1.0f;
+    float duck;
+    __atomic_load(&xemu_audio_duck, &duck, __ATOMIC_RELAXED);
+    duck = duck < 0.0f ? 0.0f : (duck > 1.0f ? 1.0f : duck);
+    if (duck >= 1.0f && last_duck >= 1.0f) {
+        return;
+    }
+    int n = len / 2;
+    int16_t *smp = (int16_t *)buf;
+    for (int i = 0; i < n; i++) {
+        float g = last_duck + (duck - last_duck) * (i + 1) / n;
+        smp[i] = (int16_t)(smp[i] * g);
+    }
+    last_duck = duck;
+}
+#endif
+
 static int write_audio(AC97LinkState *s, AC97BusMasterRegs *r,
                        int max, int *stop)
 {
@@ -987,6 +1013,9 @@ static int write_audio(AC97LinkState *s, AC97BusMasterRegs *r,
         int copied;
         to_copy = MIN(temp, sizeof(tmpbuf));
         dma_memory_read(s->as, addr, tmpbuf, to_copy, MEMTXATTRS_UNSPECIFIED);
+#ifdef XBOX
+        ac97_duck(tmpbuf, to_copy);
+#endif
         copied = AUD_write(s->voice_po, tmpbuf, to_copy);
         dolog("write_audio max=%x to_copy=%x copied=%x",
               max, to_copy, copied);
