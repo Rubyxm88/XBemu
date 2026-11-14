@@ -896,3 +896,4 @@ Results are also in system\\xemu.log	Die Ergebnisse stehen auch in system\\xemu.
 Connected '%s' to port %d	'%s' an Anschluss %d verbunden	'%s' connecté au port %d	'%s' conectado al puerto %d	'%s' collegato alla porta %d	'%s' conectado à porta %d
 Connected XMU %s to port %d%c	XMU %s an Anschluss %d%c verbunden	XMU %s connectée au port %d%c	XMU %s conectada al puerto %d%c	XMU %s collegata alla porta %d%c	XMU %s conectada à porta %d%c
 Unable to bind XMU at %s to port %d%c	XMU %s konnte nicht an Anschluss %d%c gebunden werden	Impossible de lier la XMU %s au port %d%c	No se pudo asignar la XMU %s al puerto %d%c	Impossibile collegare la XMU %s alla porta %d%c	Não foi possível vincular a XMU %s à porta %d%c
+Patch notes are in English.	Die Patchnotes sind auf Englisch.	Les notes de version sont en anglais.	Las notas del parche están en inglés.	Le note della patch sono in inglese.	As notas de atualização estão em inglês.

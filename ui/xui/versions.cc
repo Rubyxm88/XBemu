@@ -948,6 +948,11 @@ void VersionsWindow::Draw()
     } else if (state == FAILED && builds.empty()) {
         ImGui::TextColored(problem_color, "%s", error.c_str());
     }
+    if (!builds.empty() && !I18nIsEnglish()) {
+        // The notes come from the releases page as written: in English
+        ImGui::TextDisabled("Patch notes are in English.");
+        ImGui::Spacing();
+    }
     for (const ReleaseBuild &b : builds) {
         ImGui::PushID(b.build);
         bool installed = b.build == local.build;

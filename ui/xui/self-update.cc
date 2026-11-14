@@ -746,6 +746,10 @@ void SelfUpdateWindow::DrawContents(State state)
     case DOWNLOAD_FAILED:
         ImGui::Text("XBemu build %s is ready",
                     BuildText(build).c_str());
+        if ((!changes.empty() || !notes.empty()) && !I18nIsEnglish()) {
+            // The notes come from the releases page: in English
+            ImGui::TextDisabled("Patch notes are in English.");
+        }
         for (const std::string &line : changes) {
             ImGui::TextDisabled("- %s", line.c_str());
         }
