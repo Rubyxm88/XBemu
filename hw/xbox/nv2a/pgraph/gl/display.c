@@ -231,7 +231,23 @@ static void render_display_pvideo_overlay(NV2AState *d)
     }
 
     /* TODO: support other color formats */
-    assert(in_color == NV_PVIDEO_FORMAT_COLOR_LE_CR8YB8CB8YA8);
+    /* XBemu: a game leaving (Halo 2 back to the dashboard) can leave the
+     * overlay on with another color format or a buffer past its limit for a
+     * frame. Stock xemu asserts and closes; hide the overlay instead. */
+    if (in_color != NV_PVIDEO_FORMAT_COLOR_LE_CR8YB8CB8YA8 ||
+        offset + (hwaddr)in_pitch * in_height > limit ||
+        base + offset + (hwaddr)in_pitch * in_height >
+            memory_region_size(d->vram)) {
+        static bool logged;
+        if (!logged) {
+            logged = true;
+            fprintf(stderr, "nv2a: video overlay skipped (format %d, "
+                    "pitch %d, height %d); shown once\n",
+                    in_color, in_pitch, in_height);
+        }
+        glUniform1ui(r->disp_rndr.pvideo_enable_loc, 0);
+        return;
+    }
 
     unsigned int out_x =
         GET_MASK(d->pvideo.regs[NV_PVIDEO_POINT_OUT], NV_PVIDEO_POINT_OUT_X);
@@ -249,9 +265,6 @@ static void render_display_pvideo_overlay(NV2AState *d)
                 GET_MASK(color_key, NV_PVIDEO_COLOR_KEY_GREEN) / 255.0,
                 GET_MASK(color_key, NV_PVIDEO_COLOR_KEY_BLUE) / 255.0);
 
-    assert(offset + in_pitch * in_height <= limit);
-    hwaddr end = base + offset + in_pitch * in_height;
-    assert(end <= memory_region_size(d->vram));
 
     pgraph_apply_scaling_factor(pg, &out_x, &out_y);
     pgraph_apply_scaling_factor(pg, &out_width, &out_height);

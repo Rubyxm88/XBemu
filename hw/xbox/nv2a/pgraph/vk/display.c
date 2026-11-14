@@ -805,8 +805,7 @@ static PvideoState get_pvideo_state(PGRAPHState *pg)
     state.format =
         GET_MASK(d->pvideo.regs[NV_PVIDEO_FORMAT], NV_PVIDEO_FORMAT_COLOR);
 
-    /* TODO: support other color formats */
-    assert(state.format == NV_PVIDEO_FORMAT_COLOR_LE_CR8YB8CB8YA8);
+    /* TODO: support other color formats (checked below) */
 
     state.in_width =
         GET_MASK(d->pvideo.regs[NV_PVIDEO_SIZE_IN], NV_PVIDEO_SIZE_IN_WIDTH);
@@ -854,9 +853,22 @@ static PvideoState get_pvideo_state(PGRAPHState *pg)
     // Note: PVIDEO color keying ignores alpha.
     state.color_key = d->pvideo.regs[NV_PVIDEO_COLOR_KEY] & 0xFFFFFF;
 
-    assert(state.offset + state.pitch * state.in_height <= state.limit);
-    hwaddr end = state.base + state.offset + state.pitch * state.in_height;
-    assert(end <= memory_region_size(d->vram));
+    /* XBemu: hide the overlay instead of asserting when a game leaves it on
+     * with another color format or a buffer past its limit (seen when Halo 2
+     * goes back to the dashboard). */
+    hwaddr size = (hwaddr)state.pitch * state.in_height;
+    if (state.format != NV_PVIDEO_FORMAT_COLOR_LE_CR8YB8CB8YA8 ||
+        state.offset + size > state.limit ||
+        state.base + state.offset + size > memory_region_size(d->vram)) {
+        static bool logged;
+        if (!logged) {
+            logged = true;
+            fprintf(stderr, "nv2a: video overlay skipped (format %d, "
+                    "pitch %d, height %d); shown once\n",
+                    (int)state.format, (int)state.pitch, (int)state.in_height);
+        }
+        state.enabled = false;
+    }
 
     return state;
 }
