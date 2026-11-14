@@ -21,7 +21,9 @@ games folder and "XBemu" are in the folder you unzipped.
    No account yet? See NEW ACCOUNT below first.
 4. In the dashboard: Settings > Network, set the top option to XB Online.
 5. Menu: Play > Load <game>. The disc goes in the tray, like pushing a disc
-   into a real Xbox. Start it from the XBL Dashboard's Disc tile.
+   into a real Xbox. A short "Loading disc" screen shows while the
+   dashboard reads it (the menus wait until it is done), then start it from
+   the XBL Dashboard's Disc tile. Full redump images (.iso) work too.
 
 All of this is also in the app: Help > XBemu Guide.
 
@@ -71,6 +73,10 @@ HELP
   XBemu Guide...              This README, inside the app, with buttons.
   Versions & Updates...       Install a newer or an older build, and pick
                               Stable or Beta (see UPDATES).
+  Language                    Automatic follows the console's language (set
+                              in the XBL Dashboard), or pick one to keep.
+  Report a translation problem...
+                              Shown when the menus are not in English.
   About
 
 The build you have shows at the right of the menu bar. An amber dot on it
@@ -95,14 +101,24 @@ XBemu runs OXOS, the open-source Xbox BIOS (github.com/kooscode/oxos,
 GPL-2.0). It comes with XBemu in system\bios\. Some disc games freeze on it.
 XBemu has no other BIOS option. What happened is in system\bios-log.txt.
 
-New OXOS versions: XBemu looks once a day and asks before updating. Each
-one says "Tested with XBemu" or "Not tested with XBemu yet". The download is
-checked against the release's SHA-256.
+New OXOS versions (Beta only): on Beta, XBemu looks once a day and asks
+before updating. Each one says "Tested with XBemu" or "Not tested with XBemu
+yet". The download is checked against the release's SHA-256. On Stable a
+new OXOS comes with an XBemu build.
 
 Going back: Machine > BIOS lists the OXOS versions on this computer (the
 last three are kept). Choose one and XBemu restarts with it. If XBemu is
 closed soon after an update, the next start offers to go back. Your choice
 stays until an XBemu update brings a newer tested version.
+
+
+LANGUAGE
+--------
+The menus follow the console's language: English, German, French, Spanish,
+Italian or Portuguese (other languages show English). The XBL Dashboard
+sets it in its settings. To keep one language no matter what, choose it in
+Help > Language. The translations are new; if something reads wrong, use
+Help > Report a translation problem. Patch notes stay in English.
 
 
 SHADERS
@@ -150,8 +166,8 @@ Help > Versions & Updates... lists every build. Pick a newer one to update,
 or an older one to go back if the newest gives you trouble.
 Builds are named like "v0.1 build 7"; the number goes up with every build.
 Stable | Beta, at the top right of that window: Stable gets stable builds
-only. Beta also gets beta builds before everyone else; they may have
-problems. Going back to Stable offers the latest stable build
+only. Beta also gets beta builds and new OXOS BIOS versions before
+everyone else; they may have problems. Going back to Stable offers the latest stable build
 right away, or you can stay on the beta until the next stable build.
 To turn the check off, create an empty file system\no-update-check.txt.
 Builds and notes: https://github.com/Rubyxm88/XBemu/releases
