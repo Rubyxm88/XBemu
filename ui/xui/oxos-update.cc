@@ -9,6 +9,7 @@
 #include "common.hh"
 #include "i18n.hh"
 #include "oxos-update.hh"
+#include "versions.hh"
 #include "actions.hh"
 #include "font-manager.hh"
 #include "viewport-manager.hh"
@@ -825,7 +826,9 @@ void OxosWindow::Draw()
             SaveChoice(c);
         }
         double checked = g_ascii_strtod(c["checked"].c_str(), NULL);
-        if (!cur.empty() && (getenv("XBEMU_OXOS_CHECK") ||
+        // New OXOS versions are for the Beta channel only; on Stable the
+        // BIOS changes only with a build
+        if (!cur.empty() && BetaChannel() && (getenv("XBEMU_OXOS_CHECK") ||
             g_get_real_time() / 1e6 - checked > check_every)) {
             StartCheck(false);
         }
@@ -894,6 +897,18 @@ void OxosWindow::Menu()
         }
     }
     ImGui::Separator();
+    if (!BetaChannel()) {
+        // Stable: the BIOS comes with the build; switching between the
+        // versions above stays
+        ImGui::MenuItem("New OXOS versions: Beta only", NULL, false, false);
+        if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort |
+                                 ImGuiHoveredFlags_AllowWhenDisabled)) {
+            ImGui::SetTooltip("On Stable, a new OXOS comes with an XBemu "
+                              "build. Switch to Beta in Help > Versions & "
+                              "Updates to get new OXOS versions early.");
+        }
+        return;
+    }
     Release r;
     int s = m_status;
     bool busy = s == CHECKING || s == DOWNLOADING;

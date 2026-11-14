@@ -852,8 +852,9 @@ void VersionsWindow::Draw()
                 PopButtonColors();
             }
             if (ImGui::IsItemHovered()) {
-                ImGui::SetTooltip(i ? "Also get beta builds early. They may "
-                                      "have problems."
+                ImGui::SetTooltip(i ? "Also get beta builds and new OXOS "
+                                      "BIOS versions early. They may have "
+                                      "problems."
                                     : "Stable builds only.");
             }
         }
@@ -900,8 +901,8 @@ void VersionsWindow::Draw()
                        "one to update, or roll back to an older one if the "
                        "newest gives you trouble.");
     if (beta) {
-        ImGui::TextDisabled("Beta: beta builds are offered at start too. "
-                            "They may have problems.");
+        ImGui::TextDisabled("Beta: beta builds and new OXOS BIOS versions "
+                            "are offered too. They may have problems.");
     } else if (LocalIsBeta(builds) && !ask_back_to_stable) {
         ImGui::TextDisabled("Stable: you keep this beta until the next stable "
                             "build, or roll back below.");
