@@ -193,9 +193,19 @@ void ActionXboxLiveSetup(void)
 void ActionXboxDashboard(void)
 {
     // With no disc in the drive the console starts the dashboard on its
-    // hard disk
+    // hard disk. On the XBL Dashboard the game disc stays loaded: it goes
+    // back in once the dashboard is up, as after Reset.
     pending_insert.clear();
+    const char *disc = g_config.sys.files.dvd_path;
+    std::string keep;
+    if (xemu_xbonline_main_dashboard() == XBONLINE_DASH_XBL && disc &&
+        disc[0] && !xemu_xbonline_is_system_disc(disc)) {
+        keep = disc;
+    }
     ActionEjectDisc();
+    if (!keep.empty()) {
+        InsertAfterRestart(keep);
+    }
     ResetConsole();
 }
 
