@@ -554,41 +554,146 @@ static void MachineMenu(bool running)
     if (ImGui::MenuItem("Exit", SHORTCUT_MENU_TEXT(Q))) ActionShutdown();
 }
 
-// Play: everything that changes the disc in the console
-static void PlayMenu()
+// The Play menu's games and the XB Live menu's accounts are read from disk
+// on a thread of their own when the menu opens: the games folder and the
+// console's hard disk can sit on a drive that has to spin up, and the menus
+// are drawn on the thread that shows the picture. The menu shows what was
+// read last time until the new read is in.
+struct MenuDiskInfo {
+    GMutex lock;
+    bool busy;
+    // Play menu
+    std::multimap<std::string, std::string> games; // label -> path
+    bool games_read;
+    bool rs3_updates;
+    // XB Live menu
+    std::string account_names;
+    int account_count = -1;
+    bool accounts_read;
+    // What to read (copied when the read starts)
+    std::string games_dir, hdd_path;
+    bool want_games, want_accounts;
+};
+static MenuDiskInfo s_disk;
+
+static void MenuDiskReadOnce(bool want_games, bool want_accounts,
+                             const std::string &games_dir,
+                             const std::string &hdd_path)
 {
     std::multimap<std::string, std::string> games;
-    std::filesystem::path games_dir(g_config.general.games_dir);
-    std::error_code ec;
-    if (g_config.general.games_dir[0] &&
-        std::filesystem::is_directory(games_dir, ec)) {
-        // Images in the games folder and one folder down (downloads often
-        // come in a folder of their own)
-        for (auto it = std::filesystem::recursive_directory_iterator(
-                 games_dir, ec);
-             it != std::filesystem::recursive_directory_iterator();
-             it.increment(ec)) {
-            if (ec) {
-                break;
-            }
-            if (it.depth() >= 1) {
-                it.disable_recursion_pending();
-            }
-            const auto &path = it->path();
-            if (it->is_regular_file(ec) &&
-                (path.extension() == ".iso" || path.extension() == ".xiso")) {
-                games.insert({ path.stem().string(), path.string() });
+    bool rs3_updates = false;
+    if (want_games) {
+        std::filesystem::path dir(games_dir);
+        std::error_code ec;
+        if (!games_dir.empty() && std::filesystem::is_directory(dir, ec)) {
+            // Images in the games folder and one folder down (downloads
+            // often come in a folder of their own)
+            for (auto it = std::filesystem::recursive_directory_iterator(
+                     dir, ec);
+                 it != std::filesystem::recursive_directory_iterator();
+                 it.increment(ec)) {
+                if (ec) {
+                    break;
+                }
+                if (it.depth() >= 1) {
+                    it.disable_recursion_pending();
+                }
+                const auto &path = it->path();
+                if (it->is_regular_file(ec) &&
+                    (path.extension() == ".iso" ||
+                     path.extension() == ".xiso")) {
+                    games.insert({ path.stem().string(), path.string() });
+                }
             }
         }
+        rs3_updates = qemu_access(XEMU_XBONLINE_RS3_UPDATE_DISC, F_OK) == 0;
     }
+    char names[128] = "";
+    int count = -1;
+    if (want_accounts) {
+        count = xemu_xbonline_hdd_account_names(hdd_path.c_str(), names,
+                                                sizeof(names));
+    }
+
+    g_mutex_lock(&s_disk.lock);
+    if (want_games) {
+        s_disk.games = std::move(games);
+        s_disk.rs3_updates = rs3_updates;
+        s_disk.games_read = true;
+    }
+    if (want_accounts) {
+        s_disk.account_names = names;
+        s_disk.account_count = count;
+        s_disk.accounts_read = true;
+    }
+    g_mutex_unlock(&s_disk.lock);
+}
+
+static gpointer MenuDiskThread(gpointer)
+{
+    while (true) {
+        // Asks that came in while reading are read next
+        g_mutex_lock(&s_disk.lock);
+        bool want_games = s_disk.want_games;
+        bool want_accounts = s_disk.want_accounts;
+        std::string games_dir = s_disk.games_dir;
+        std::string hdd_path = s_disk.hdd_path;
+        s_disk.want_games = s_disk.want_accounts = false;
+        if (!want_games && !want_accounts) {
+            s_disk.busy = false;
+            g_mutex_unlock(&s_disk.lock);
+            return NULL;
+        }
+        g_mutex_unlock(&s_disk.lock);
+        MenuDiskReadOnce(want_games, want_accounts, games_dir, hdd_path);
+    }
+}
+
+static void MenuDiskRead(bool games, bool accounts)
+{
+    g_mutex_lock(&s_disk.lock);
+    s_disk.want_games |= games;
+    s_disk.want_accounts |= accounts;
+    s_disk.games_dir = g_config.general.games_dir;
+    s_disk.hdd_path = g_config.sys.files.hdd_path;
+    if (!s_disk.busy) {
+        s_disk.busy = true;
+        g_thread_unref(g_thread_new("menu-disk", MenuDiskThread, NULL));
+    }
+    g_mutex_unlock(&s_disk.lock);
+}
+
+// Whether two paths name the same file, without asking the disk
+static bool SamePath(const std::string &a, const std::string &b)
+{
+    std::string x = std::filesystem::path(a).lexically_normal().string();
+    std::string y = std::filesystem::path(b).lexically_normal().string();
+#ifdef _WIN32
+    return g_ascii_strcasecmp(x.c_str(), y.c_str()) == 0;
+#else
+    return x == y;
+#endif
+}
+
+// Play: everything that changes the disc in the console
+static void PlayMenu(bool just_opened)
+{
+    if (just_opened) {
+        MenuDiskRead(true, false);
+    }
+    g_mutex_lock(&s_disk.lock);
+    std::multimap<std::string, std::string> games = s_disk.games;
+    bool games_read = s_disk.games_read;
+    bool rs3_updates = s_disk.rs3_updates;
+    g_mutex_unlock(&s_disk.lock);
 
     // A game goes in the tray, like a disc pushed into a real Xbox: the XBL
     // Dashboard installs, patches and starts it
     MenuHeader("Games");
-    std::filesystem::path current(g_config.sys.files.dvd_path);
+    std::string current = g_config.sys.files.dvd_path;
     for (const auto &[label, path] : games) {
         std::string item = TrF("Load %s", label.c_str());
-        bool loaded = std::filesystem::equivalent(current, path, ec);
+        bool loaded = !current.empty() && SamePath(current, path);
         if (ImGui::MenuItem(item.c_str(), NULL, loaded)) {
             ActionChooseGame(path.c_str());
         }
@@ -598,7 +703,12 @@ static void PlayMenu()
                      "Dashboard's Disc tile. From a game, the console goes "
                      "back to the dashboard first.");
     }
-    if (games.empty() && ImGui::MenuItem("No games yet: Open Games Folder")) {
+    if (!games_read) {
+        ImGui::BeginDisabled();
+        ImGui::MenuItem("Checking...");
+        ImGui::EndDisabled();
+    } else if (games.empty() &&
+               ImGui::MenuItem("No games yet: Open Games Folder")) {
         xemu_xbcheck_open_games_folder();
     }
     if (ImGui::MenuItem("Load Disc...", SHORTCUT_MENU_TEXT(O))) ActionLoadDisc();
@@ -606,7 +716,6 @@ static void PlayMenu()
 
     // Black Arrow needs no update disc any more: the XBL Dashboard installs
     // and updates the game. Only Rainbow Six 3 keeps its installer.
-    bool rs3_updates = qemu_access(XEMU_XBONLINE_RS3_UPDATE_DISC, F_OK) == 0;
     if (rs3_updates) {
         MenuHeader("Game Updates");
         if (MenuItemTagged("Old Bow Updates", "STOCK", TAG_STOCK_BG,
@@ -654,17 +763,22 @@ static void PlayMenu()
 // XB Online: the Xbox Live account and the connection to XB Online
 static void XbOnlineMenu(bool just_opened)
 {
-    // Read the accounts once each time the menu opens
-    static char account_names[128];
-    static int account_count = -1;
+    // The accounts are read again each time the menu opens
     if (just_opened) {
-        account_count = xemu_xbonline_hdd_account_names(
-            g_config.sys.files.hdd_path, account_names,
-            sizeof(account_names));
+        MenuDiskRead(false, true);
     }
+    g_mutex_lock(&s_disk.lock);
+    std::string account_names = s_disk.account_names;
+    int account_count = s_disk.account_count;
+    bool accounts_read = s_disk.accounts_read;
+    g_mutex_unlock(&s_disk.lock);
 
     MenuHeader("Account");
-    if (account_count > 0) {
+    if (!accounts_read) {
+        ImGui::BeginDisabled();
+        ImGui::MenuItem("Checking...");
+        ImGui::EndDisabled();
+    } else if (account_count > 0) {
         std::string item =
             std::string(account_count > 1 ? "Accounts: " : "Account: ") +
             account_names;
@@ -1037,9 +1151,13 @@ void ShowMainMenu()
             MachineMenu(running);
             ImGui::EndMenu();
         }
+        static bool play_menu_open;
         if (ImGui::BeginMenu("Play")) {
-            PlayMenu();
+            PlayMenu(!play_menu_open);
+            play_menu_open = true;
             ImGui::EndMenu();
+        } else {
+            play_menu_open = false;
         }
         static bool xbonline_menu_open;
         if (ImGui::BeginMenu("XB Live")) {
