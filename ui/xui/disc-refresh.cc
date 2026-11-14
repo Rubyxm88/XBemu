@@ -347,6 +347,9 @@ static void DrawDisc(ImDrawList *dl, ImVec2 c, float r, float angle, float a)
                         Col(0, 0, 0, 0.45f * a), 64);
     const int n = 72;
     float r_in = r * 0.36f;
+    // Edge smoothing off for the segments: it left thin seams between them
+    ImDrawListFlags flags = dl->Flags;
+    dl->Flags &= ~ImDrawListFlags_AntiAliasedFill;
     for (int i = 0; i < n; i++) {
         float a0 = (float)(2 * M_PI * i / n);
         float a1 = (float)(2 * M_PI * (i + 1) / n);
@@ -368,6 +371,7 @@ static void DrawDisc(ImDrawList *dl, ImVec2 c, float r, float angle, float a)
         ImVec2 q3(c.x + cosf(a1) * r_in, c.y + sinf(a1) * r_in);
         dl->AddQuadFilled(q0, q1, q2, q3, Col(cr, cg, cb, a));
     }
+    dl->Flags = flags;
     dl->AddCircle(c, r, Col(255, 255, 255, 0.35f * a), 96, 1.5f * scale);
     dl->AddCircle(c, r * 0.97f, Col(0, 0, 0, 0.18f * a), 96, 1.0f * scale);
     // The clear hub, the stacking ring, the hole
@@ -447,7 +451,7 @@ void DiscRefreshDraw()
     float logo_w = std::min(W * 0.36f, 320.0f * scale);
     float logo_h = (g_xbemu_logo_tex && g_xbemu_logo_w > 0) ?
                    logo_w * g_xbemu_logo_h / g_xbemu_logo_w : 0;
-    float r = std::min(H * 0.085f, 64.0f * scale);
+    float r = std::min(H * 0.09f, 70.0f * scale);
     ImFont *f_title = g_font_mgr.m_menu_font_medium;
     ImFont *f_name = g_font_mgr.m_menu_font;
     if (f_name->CalcTextSizeA(f_name->FontSize, FLT_MAX, 0, s_name.c_str()).x >
@@ -455,7 +459,7 @@ void DiscRefreshDraw()
         f_name = g_font_mgr.m_menu_font_medium;
     }
     ImFont *f_small = g_font_mgr.m_default_font;
-    float gap_logo = 54.0f * scale, gap_disc = 34.0f * scale;
+    float gap_logo = 84.0f * scale, gap_disc = 38.0f * scale;
     float block = logo_h + gap_logo + 2 * r + gap_disc + f_title->FontSize +
                   10.0f * scale + f_name->FontSize + 14.0f * scale +
                   f_small->FontSize;
@@ -474,9 +478,9 @@ void DiscRefreshDraw()
 
     // A soft green glow behind the disc
     ImVec2 c(cx, y + r);
-    for (int i = 4; i >= 1; i--) {
-        dl->AddCircleFilled(c, r * (1.0f + 0.35f * i),
-                            Col(30, 160, 40, 0.035f * a), 64);
+    for (int i = 3; i >= 1; i--) {
+        dl->AddCircleFilled(c, r * (1.0f + 0.16f * i),
+                            Col(30, 160, 40, 0.05f * a), 64);
     }
     DrawDisc(dl, c, r, s_angle, a);
 
