@@ -1309,6 +1309,22 @@ void ide_atapi_cmd(IDEState *s)
 
     trace_ide_atapi_cmd(s, s->io_buffer[0]);
 
+    /* XEMU_ATAPI_TRACE: every command but disc reads, with the pending sense
+     * (6 = unit attention: the disc changed), and the first read after one */
+    {
+        static int on = -1;
+        static bool last_read;
+        if (on < 0) {
+            on = getenv("XEMU_ATAPI_TRACE") != NULL;
+        }
+        bool read = buf[0] == 0x28 || buf[0] == 0xa8;
+        if (on && (!read || !last_read)) {
+            fprintf(stderr, "atapi trace: cmd 0x%02x sense %d changed %d tray %d\n",
+                    buf[0], s->sense_key, s->cdrom_changed, s->tray_open);
+        }
+        last_read = read;
+    }
+
     if (trace_event_get_state_backends(TRACE_IDE_ATAPI_CMD_PACKET)) {
         g_autoptr(GString) str =
             qemu_hexdump_line(NULL, buf, ATAPI_PACKET_SIZE, 1, 0);
