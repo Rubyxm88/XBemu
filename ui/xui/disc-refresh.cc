@@ -297,6 +297,11 @@ static void Step(double t)
     }
 }
 
+bool DiscRefreshActive()
+{
+    return s_active;
+}
+
 extern "C" void xemu_disc_refresh_start(const char *path)
 {
     if (xemu_running_title_get(NULL) ||

@@ -272,7 +272,11 @@ void xemu_hud_update(void)
             tc.w = alpha;
             ImGui::PushStyleColor(ImGuiCol_Text, tc);
             ImGui::SetNextWindowBgAlpha(alpha);
+            // Shut (and an open menu closed) while a loaded disc is being
+            // shown on the dashboard
+            ImGui::BeginDisabled(DiscRefreshActive());
             ShowMainMenu();
+            ImGui::EndDisabled();
             ImGui::PopStyleColor();
         } else {
             g_main_menu_height = 0;
@@ -409,7 +413,7 @@ void xemu_hud_update(void)
     }
 
     if (!ImGui::IsWindowFocused(ImGuiFocusedFlags_AnyWindow) &&
-        !g_scene_mgr.IsDisplayingScene()) {
+        !g_scene_mgr.IsDisplayingScene() && !DiscRefreshActive()) {
 
         // If the guide button is pressed, wake the ui
         bool menu_button = false;

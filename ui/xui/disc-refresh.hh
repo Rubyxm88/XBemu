@@ -15,6 +15,10 @@ void DiscRefreshCapture(int width, int height);
 // Each frame: the overlay, and the presses that make the dashboard look
 void DiscRefreshDraw();
 
+// A refresh is running: the menus stay shut until it is done (a menu open
+// over the console's picture kept the dashboard from taking the moves)
+bool DiscRefreshActive();
+
 extern "C" {
 // A disc was loaded: on the XBL Dashboard, cover the screen, move right and
 // back left so the dashboard reads the new disc, then show it. Does nothing
