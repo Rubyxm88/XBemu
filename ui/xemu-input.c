@@ -539,7 +539,7 @@ void xemu_input_update_controller(ControllerState *state)
             g_remove(pad_file);
             static const char *const names[] = {
                 "a", "b", "x", "y", "left", "up", "right", "down", "back",
-                "start",
+                "start", "white", "black", "lstick", "rstick",
             };
             g_strstrip(text);
             for (int i = 0; i < (int)ARRAY_SIZE(names); i++) {
