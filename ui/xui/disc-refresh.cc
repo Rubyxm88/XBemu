@@ -25,6 +25,8 @@
 #include <epoxy/gl.h>
 #include <math.h>
 #include <stdlib.h>
+#include <stdio.h>
+#include <float.h>
 #include <algorithm>
 #include <string>
 #include <vector>
@@ -39,6 +41,10 @@
 #include "../xemu-dashinstall.h"
 #include "../xemu-gamecache.h"
 
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
 // Seconds
 #define FADE_IN      0.35
 #define FIRST_PRESS  0.80   // after the disc change
@@ -48,6 +54,7 @@
 #define LOADED_TIME  1.00   // "Disc loaded" on screen
 #define FADE_TIME    0.45
 #define DUCK_RAMP    0.20   // the sound fades out before the first press
+#define UNMUTE_AFTER 0.80   // sound back no sooner after the last press
 
 #define MAX_ROUNDS 3        // move pairs taken before giving up
 
@@ -91,6 +98,8 @@ static double s_phase_at;       // seconds when the phase started
 static int s_pair, s_rounds;
 static uint32_t s_mounts;       // READ CAPACITY count at the start
 static double s_loaded_at;
+static double s_last_press;     // seconds of the last press
+static float s_angle, s_speed;  // the drawn disc's turn
 
 // The console's picture, small: a texture to scale into, and the pixels
 static GLuint s_tex, s_fbo;
@@ -181,6 +190,7 @@ static int Changed(void)
 static void Press(uint16_t button)
 {
     s_pressed = button;
+    s_last_press = ImGui::GetTime() - s_start;
     __atomic_store_n(&xemu_input_forced_buttons, button, __ATOMIC_RELAXED);
 }
 
@@ -304,34 +314,70 @@ extern "C" void xemu_disc_refresh_start(const char *path)
     s_pair = 0;
     s_rounds = 0;
     s_loaded_at = -1;
+    s_last_press = 0;
+    s_speed = 0;
     s_before.clear();
     s_mounts = __atomic_load_n(&xemu_atapi_capacity_reads, __ATOMIC_RELAXED);
     SetPhase(PHASE_MOVE, 0);
     fprintf(stderr, "disc refresh: start (%s)\n", s_name.c_str());
 }
 
-// A spinning arc, or a green circle with a tick when done
-static void DrawMark(bool done, double t, float size)
+// --- The cover
+
+static ImU32 Col(int r, int g, int b, float a)
 {
-    ImVec2 p = ImGui::GetCursorScreenPos();
-    ImVec2 c(p.x + size / 2, p.y + size / 2);
-    float r = size / 2;
+    return IM_COL32(r, g, b, (int)(255 * std::min(1.0f, std::max(0.0f, a))));
+}
+
+// Text centred on x, top at y; returns its height
+static float CentredText(ImDrawList *dl, ImFont *font, float x, float y,
+                         ImU32 col, const char *text)
+{
+    ImVec2 sz = font->CalcTextSizeA(font->FontSize, FLT_MAX, 0, text);
+    dl->AddText(font, font->FontSize, ImVec2(x - sz.x / 2, y), col, text);
+    return sz.y;
+}
+
+// A disc seen from the front: silver with a sheen that turns with it, the
+// clear hub and its hole
+static void DrawDisc(ImDrawList *dl, ImVec2 c, float r, float angle, float a)
+{
     float scale = g_viewport_mgr.m_scale;
-    ImDrawList *dl = ImGui::GetWindowDrawList();
-    if (done) {
-        dl->AddCircleFilled(c, r, IM_COL32(26, 158, 26, 255));
-        ImVec2 tick[3] = { ImVec2(c.x - r * 0.48f, c.y + r * 0.04f),
-                           ImVec2(c.x - r * 0.12f, c.y + r * 0.40f),
-                           ImVec2(c.x + r * 0.52f, c.y - r * 0.36f) };
-        dl->AddPolyline(tick, 3, IM_COL32_WHITE, 0, 3.0f * scale);
-    } else {
-        dl->AddCircle(c, r - 2 * scale, IM_COL32(255, 255, 255, 40), 0,
-                      3.0f * scale);
-        float a0 = (float)(t * 5.0);
-        dl->PathArcTo(c, r - 2 * scale, a0, a0 + 4.2f, 32);
-        dl->PathStroke(IM_COL32(40, 190, 40, 255), 0, 3.0f * scale);
+    dl->AddCircleFilled(ImVec2(c.x, c.y + 5 * scale), r * 1.02f,
+                        Col(0, 0, 0, 0.45f * a), 64);
+    const int n = 72;
+    float r_in = r * 0.36f;
+    for (int i = 0; i < n; i++) {
+        float a0 = (float)(2 * M_PI * i / n);
+        float a1 = (float)(2 * M_PI * (i + 1) / n);
+        float m = (a0 + a1) / 2;
+        // Two bright bands opposite each other, a faint rainbow over them
+        float lit = 0.5f + 0.5f * cosf(2 * (m - angle));
+        lit = lit * lit;
+        float hue = fmodf(m / (float)(2 * M_PI) + angle * 0.05f + 1.0f, 1.0f);
+        float rr, gg, bb;
+        ImGui::ColorConvertHSVtoRGB(hue, 0.35f, 1.0f, rr, gg, bb);
+        float base = 120 + 115 * lit;
+        float tint = 0.22f * lit;
+        int cr = (int)(base * (1 - tint) + 255 * rr * tint);
+        int cg = (int)(base * (1 - tint) + 255 * gg * tint);
+        int cb = (int)(base * (1 - tint) + 255 * bb * tint);
+        ImVec2 q0(c.x + cosf(a0) * r_in, c.y + sinf(a0) * r_in);
+        ImVec2 q1(c.x + cosf(a0) * r, c.y + sinf(a0) * r);
+        ImVec2 q2(c.x + cosf(a1) * r, c.y + sinf(a1) * r);
+        ImVec2 q3(c.x + cosf(a1) * r_in, c.y + sinf(a1) * r_in);
+        dl->AddQuadFilled(q0, q1, q2, q3, Col(cr, cg, cb, a));
     }
-    ImGui::Dummy(ImVec2(size, size));
+    dl->AddCircle(c, r, Col(255, 255, 255, 0.35f * a), 96, 1.5f * scale);
+    dl->AddCircle(c, r * 0.97f, Col(0, 0, 0, 0.18f * a), 96, 1.0f * scale);
+    // The clear hub, the stacking ring, the hole
+    dl->AddCircleFilled(c, r_in, Col(58, 66, 62, a), 48);
+    dl->AddCircle(c, r_in, Col(255, 255, 255, 0.25f * a), 48, 1.0f * scale);
+    dl->AddCircle(c, r * 0.24f, Col(255, 255, 255, 0.12f * a), 48,
+                  2.0f * scale);
+    dl->AddCircleFilled(c, r * 0.12f, Col(9, 12, 10, a), 32);
+    dl->AddCircle(c, r * 0.12f, Col(255, 255, 255, 0.20f * a), 32,
+                  1.0f * scale);
 }
 
 void DiscRefreshDraw()
@@ -354,17 +400,20 @@ void DiscRefreshDraw()
     Step(t);
 
     // The console's sound off from just before the first press until
-    // "Disc loaded" (a click is still queued for a moment after its press),
-    // so the moves make no menu sounds
+    // "Disc loaded", and never sooner than UNMUTE_AFTER s after the last
+    // press (the dashboard makes its click a moment after the press)
+    double unmute = s_loaded_at < 0 ? 1e9 :
+                    std::max(s_loaded_at, s_last_press + UNMUTE_AFTER);
     float duck;
-    if (s_loaded_at < 0 || t < s_loaded_at) {
+    if (t < unmute) {
         duck = (float)(1.0 - (t - (FIRST_PRESS - DUCK_RAMP)) / DUCK_RAMP);
     } else {
-        duck = (float)((t - s_loaded_at) / DUCK_RAMP);
+        duck = (float)((t - unmute) / DUCK_RAMP);
     }
     SetDuck(std::min(1.0f, std::max(0.0f, duck)));
 
-    double fade_out = s_loaded_at < 0 ? 1e9 : s_loaded_at + LOADED_TIME;
+    double fade_out = s_loaded_at < 0 ? 1e9 :
+                      std::max(s_loaded_at + LOADED_TIME, unmute);
     if (t >= fade_out + FADE_TIME) {
         Stop("done");
         return;
@@ -376,62 +425,113 @@ void DiscRefreshDraw()
         a = (float)(1.0 - (t - fade_out) / FADE_TIME);
     }
     a = a * a * (3 - 2 * a); // smooth
-
-    // The cover, as the XBL Dashboard setup's
-    const ImGuiViewport *vp = ImGui::GetMainViewport();
-    ImGui::GetBackgroundDrawList()->AddRectFilled(
-        vp->Pos, ImVec2(vp->Pos.x + vp->Size.x, vp->Pos.y + vp->Size.y),
-        IM_COL32(12, 14, 12, (int)(255 * a)));
-
     bool done = s_phase == PHASE_LOADED && t >= s_loaded_at;
-    float scale = g_viewport_mgr.m_scale;
-    ImGui::PushStyleVar(ImGuiStyleVar_Alpha, a);
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
-    ImGui::SetNextWindowPos(vp->GetCenter(), ImGuiCond_Always,
-                            ImVec2(0.5f, 0.5f));
-    ImGui::SetNextWindowBgAlpha(0.0f);
-    if (ImGui::Begin("##disc-refresh", NULL,
-                     ImGuiWindowFlags_NoDecoration |
-                         ImGuiWindowFlags_NoMove |
-                         ImGuiWindowFlags_NoSavedSettings |
-                         ImGuiWindowFlags_NoFocusOnAppearing |
-                         ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoInputs |
-                         ImGuiWindowFlags_AlwaysAutoResize)) {
-        float lw = std::min(vp->Size.x * 0.6f, 420.0f * scale);
-        if (g_xbemu_logo_tex && g_xbemu_logo_w > 0) {
-            float lh = lw * g_xbemu_logo_h / g_xbemu_logo_w;
-            ImGui::Image((ImTextureID)(intptr_t)g_xbemu_logo_tex,
-                         ImVec2(lw, lh));
-            ImGui::Dummy(ImVec2(0, 22.0f * scale));
-        } else {
-            ImGui::Dummy(ImVec2(lw, 0));
-        }
 
-        // Mark and words, centred under the logo
-        ImGui::PushFont(g_font_mgr.m_menu_font);
-        const char *title = done ? "Disc loaded" : "Loading disc...";
-        float size = ImGui::GetTextLineHeight() * 1.5f;
-        ImVec2 tsz = ImGui::CalcTextSize(title);
-        ImGui::PopFont();
-        ImGui::PushFont(g_font_mgr.m_default_font);
-        ImVec2 nsz = ImGui::CalcTextSize(s_name.c_str());
-        ImGui::PopFont();
-        float gap = 14.0f * scale;
-        float row = size + gap + std::max(tsz.x, nsz.x);
-        ImGui::SetCursorPosX(ImGui::GetCursorPosX() +
-                             std::max(0.0f, (lw - row) / 2));
-        DrawMark(done, t, size);
-        ImGui::SameLine(0, gap);
-        ImGui::BeginGroup();
-        ImGui::PushFont(g_font_mgr.m_menu_font);
-        ImGui::Text("%s", title);
-        ImGui::PopFont();
-        ImGui::PushFont(g_font_mgr.m_default_font);
-        ImGui::TextColored(ImVec4(0.62f, 0.65f, 0.66f, 1.0f), "%s",
-                           s_name.c_str());
-        ImGui::PopFont();
-        ImGui::EndGroup();
+    // The disc turns fast while loading and slows to a stop once loaded
+    float dt = std::min(0.1f, ImGui::GetIO().DeltaTime);
+    s_speed = done ? std::max(0.0f, s_speed - 9.0f * dt) :
+                     std::min(7.0f, s_speed + 14.0f * dt);
+    s_angle = fmodf(s_angle + s_speed * dt, (float)(2 * M_PI));
+
+    float scale = g_viewport_mgr.m_scale;
+    const ImGuiViewport *vp = ImGui::GetMainViewport();
+    ImVec2 p0 = vp->Pos, p1(vp->Pos.x + vp->Size.x, vp->Pos.y + vp->Size.y);
+    float W = vp->Size.x, H = vp->Size.y, cx = p0.x + W / 2;
+    ImDrawList *dl = ImGui::GetBackgroundDrawList();
+
+    // Background: dark, a little green at the bottom
+    dl->AddRectFilledMultiColor(p0, p1, Col(12, 15, 13, a), Col(12, 15, 13, a),
+                                Col(6, 20, 9, a), Col(6, 20, 9, a));
+
+    // Sizes, then the whole block centred on the screen
+    float logo_w = std::min(W * 0.36f, 320.0f * scale);
+    float logo_h = (g_xbemu_logo_tex && g_xbemu_logo_w > 0) ?
+                   logo_w * g_xbemu_logo_h / g_xbemu_logo_w : 0;
+    float r = std::min(H * 0.085f, 64.0f * scale);
+    ImFont *f_title = g_font_mgr.m_menu_font_medium;
+    ImFont *f_name = g_font_mgr.m_menu_font;
+    if (f_name->CalcTextSizeA(f_name->FontSize, FLT_MAX, 0, s_name.c_str()).x >
+        W * 0.9f) {
+        f_name = g_font_mgr.m_menu_font_medium;
     }
-    ImGui::End();
-    ImGui::PopStyleVar(2);
+    ImFont *f_small = g_font_mgr.m_default_font;
+    float gap_logo = 54.0f * scale, gap_disc = 34.0f * scale;
+    float block = logo_h + gap_logo + 2 * r + gap_disc + f_title->FontSize +
+                  10.0f * scale + f_name->FontSize + 14.0f * scale +
+                  f_small->FontSize;
+    float y = p0.y + std::max(16.0f * scale, (H - block) / 2);
+
+    // Gentle rise as it appears
+    y += (1.0f - a) * 12.0f * scale;
+
+    if (logo_h > 0) {
+        dl->AddImage((ImTextureID)(intptr_t)g_xbemu_logo_tex,
+                     ImVec2(cx - logo_w / 2, y),
+                     ImVec2(cx + logo_w / 2, y + logo_h), ImVec2(0, 0),
+                     ImVec2(1, 1), Col(255, 255, 255, a));
+    }
+    y += logo_h + gap_logo;
+
+    // A soft green glow behind the disc
+    ImVec2 c(cx, y + r);
+    for (int i = 4; i >= 1; i--) {
+        dl->AddCircleFilled(c, r * (1.0f + 0.35f * i),
+                            Col(30, 160, 40, 0.035f * a), 64);
+    }
+    DrawDisc(dl, c, r, s_angle, a);
+
+    // Green progress arc around the disc while loading
+    float ring = r + 10.0f * scale;
+    dl->AddCircle(c, ring, Col(255, 255, 255, 0.06f * a), 96, 3.0f * scale);
+    if (!done) {
+        float s0 = (float)(t * 3.2);
+        float len = 1.1f + 0.6f * sinf((float)(t * 2.1));
+        dl->PathArcTo(c, ring, s0, s0 + len, 40);
+        dl->PathStroke(Col(60, 200, 70, a), 0, 3.0f * scale);
+    }
+
+    // Loaded: a green badge with a tick pops onto the disc
+    if (done) {
+        float k = std::min(1.0f, (float)((t - s_loaded_at) / 0.28));
+        float pop = 1.0f + 0.25f * sinf(k * (float)M_PI); // a little overshoot
+        float br = r * 0.42f * k * pop;
+        ImVec2 b(c.x + r * 0.68f, c.y + r * 0.68f);
+        if (br > 1.0f) {
+            dl->AddCircleFilled(ImVec2(b.x, b.y + 2 * scale), br,
+                                Col(0, 0, 0, 0.4f * a), 32);
+            dl->AddCircleFilled(b, br, Col(30, 170, 40, a), 32);
+            dl->AddCircle(b, br, Col(255, 255, 255, 0.5f * a), 32,
+                          1.5f * scale);
+            ImVec2 tick[3] = { ImVec2(b.x - br * 0.45f, b.y + br * 0.02f),
+                               ImVec2(b.x - br * 0.10f, b.y + br * 0.36f),
+                               ImVec2(b.x + br * 0.48f, b.y - br * 0.32f) };
+            dl->AddPolyline(tick, 3, Col(255, 255, 255, a), 0,
+                            std::max(1.5f, br * 0.16f));
+        }
+    }
+    y += 2 * r + gap_disc;
+
+    // "Loading disc..." with the dots counting up, placed as if all three
+    // were there so the words don't shift
+    if (done) {
+        y += CentredText(dl, f_title, cx, y, Col(110, 220, 120, a),
+                         "Disc loaded");
+    } else {
+        const char *full = "Loading disc...";
+        ImVec2 sz = f_title->CalcTextSizeA(f_title->FontSize, FLT_MAX, 0,
+                                           full);
+        int dots = (int)(t * 2.5) % 4;
+        char buf[32];
+        snprintf(buf, sizeof(buf), "Loading disc%.*s", dots, "...");
+        dl->AddText(f_title, f_title->FontSize, ImVec2(cx - sz.x / 2, y),
+                    Col(205, 214, 208, a), buf);
+        y += sz.y;
+    }
+    y += 10.0f * scale;
+    y += CentredText(dl, f_name, cx, y, Col(255, 255, 255, a),
+                     s_name.c_str());
+    y += 14.0f * scale;
+    CentredText(dl, f_small, cx, y, Col(125, 138, 130, a),
+                done ? "Ready on the XBL Dashboard" :
+                       "Updating the XBL Dashboard");
 }

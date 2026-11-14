@@ -107,10 +107,30 @@ void mcpx_apu_monitor_frame(MCPXAPUState *d)
 
     if (d->monitor.stream) {
         float vu = pow(fmax(0.0, fmin(g_config.audio.volume_limit, 1.0)), M_E);
+        SDL_SetAudioStreamGain(d->monitor.stream, vu);
+
+        /* The duck goes on the samples as they are made, not on the stream's
+         * gain: SDL applies the gain when a sample leaves its queue, and the
+         * queue can run a second behind, so a click made while muted played
+         * after the sound came back. Ramped over the frame: no pop. */
+        static float last_duck = 1.0f;
         float duck;
         __atomic_load(&xemu_audio_duck, &duck, __ATOMIC_RELAXED);
-        vu *= fmaxf(0.0f, fminf(duck, 1.0f));
-        SDL_SetAudioStreamGain(d->monitor.stream, vu);
+        duck = fmaxf(0.0f, fminf(duck, 1.0f));
+        if (duck < 1.0f || last_duck < 1.0f) {
+            for (int i = 0; i < 256; i++) {
+                float g = last_duck + (duck - last_duck) * (i + 1) / 256.0f;
+                for (int c = 0; c < 2; c++) {
+                    d->monitor.frame_buf[i][c] =
+                        (int16_t)(d->monitor.frame_buf[i][c] * g);
+                }
+                for (int c = 0; c < 6; c++) {
+                    d->monitor.frame_buf51[i][c] =
+                        (int16_t)(d->monitor.frame_buf51[i][c] * g);
+                }
+            }
+        }
+        last_duck = duck;
         if (d->monitor.channels == 6) {
             /* Fast sound mixed 6 channels itself; the DSP paths are stereo,
              * so they play on the front pair */
