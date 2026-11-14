@@ -3,6 +3,7 @@ xemu_ss.add(files(
   'animation.cc',
   'compat.cc',
   'dash-install.cc',
+  'disc-refresh.cc',
   'debug.cc',
   'font-manager.cc',
   'gl-helpers.cc',

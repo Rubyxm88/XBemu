@@ -237,6 +237,7 @@ static char **disc_swap_paths;
 static int disc_swap_next;
 static int64_t disc_swap_due_us;
 void xemu_load_disc(const char *path, Error **errp);
+void xemu_disc_refresh_start(const char *path);
 
 static RecentLine recent[RECENT_LINES];
 static int recent_next;
@@ -1120,6 +1121,9 @@ void xemu_diag_poll(void)
         if (err) {
             fprintf(stderr, "disc swap test: %s\n", error_get_pretty(err));
             error_free(err);
+        } else if (getenv("XEMU_DISC_REFRESH_TEST")) {
+            // As the Play menu does it: the dashboard shows the new disc
+            xemu_disc_refresh_start(path);
         }
         if (!disc_swap_paths[++disc_swap_next]) {
             disc_swap_next = 0;

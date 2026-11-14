@@ -26,6 +26,7 @@
 #include "../xemu-dashinstall.h"
 #include "../xemu-running-title.h"
 #include "snapshot-manager.hh"
+#include "disc-refresh.hh"
 #include "hw/xbox/xbox-audio-setting.h"
 #include <filesystem>
 #include <string>
@@ -70,6 +71,8 @@ void ActionLoadDiscFile(const char *file_path)
         xemu_queue_error_message(error_get_pretty(err));
         error_free(err);
     } else {
+        // On the XBL Dashboard: make it show the new disc
+        xemu_disc_refresh_start(file_path);
         const char *games_dir = g_config.general.games_dir;
         if (!games_dir || !games_dir[0]) {
             std::string dir = std::filesystem::path(file_path).parent_path().string();

@@ -59,6 +59,7 @@
 #include "versions.hh"
 #include "game-cache.hh"
 #include "dash-install.hh"
+#include "disc-refresh.hh"
 #include "../xemu-dashinstall.h"
 #include "../xemu-xbonline.h"
 #include "../xemu-running-title.h"
@@ -222,6 +223,7 @@ void xemu_hud_update(void)
         int ww, wh;
         SDL_GetWindowSizeInPixels(xemu_get_window(), &ww, &wh);
         RenderFramebuffer(g_tex, ww, wh, g_flip_req);
+        DiscRefreshCapture(ww, wh);
     }
 
     ImGui_ImplOpenGL3_NewFrame();
@@ -448,6 +450,7 @@ void xemu_hud_update(void)
     compatibility_reporter_window.Draw();
     PopupStackReset();
     DashInstallDraw();
+    DiscRefreshDraw();
     if (!first_boot_window.is_open) DrawRecordingBadge();
     if (!first_boot_window.is_open) xbcheck_window.Draw();
     xemu_running_title_poll();
