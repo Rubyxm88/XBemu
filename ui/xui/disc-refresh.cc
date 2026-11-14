@@ -214,6 +214,9 @@ static void Stop(const char *why)
     SetDuck(1.0f);
     s_active = false;
     fprintf(stderr, "disc refresh: %s\n", why);
+    /* What the console gets from the player just after (a report: moves
+       not taken for a second after the cover went away) */
+    xemu_input_trace_start(6.0);
 }
 
 static void SetPhase(RefreshPhase phase, double t)

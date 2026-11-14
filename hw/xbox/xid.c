@@ -86,6 +86,22 @@ void update_input(USBXIDGamepadState *s)
     /* Buttons xemu presses by itself (the XBL Dashboard install) */
     uint16_t buttons = state->buttons | qatomic_read(&xemu_input_forced_buttons);
 
+    /* Input trace: what the console reads, and how often */
+    double tt = xemu_input_trace_time();
+    if (tt >= 0) {
+        static uint16_t last_buttons = 0xffff;
+        static int reads;
+        static double last_note;
+        reads++;
+        if (buttons != last_buttons || tt - last_note >= 0.5 || tt < last_note) {
+            fprintf(stderr, "input trace: +%.2f s pad %u read 0x%04x (%d reads)\n",
+                    tt, s->device_index, buttons, reads);
+            last_buttons = buttons;
+            last_note = tt;
+            reads = 0;
+        }
+    }
+
     for (int i = 0; i < 6; i++) {
         int pressed = buttons & button_map_analog[i][1];
         s->in_state.bAnalogButtons[button_map_analog[i][0]] = pressed ? 0xff : 0;

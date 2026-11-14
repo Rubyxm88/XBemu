@@ -90,6 +90,23 @@ ControllerStateList available_controllers =
     QTAILQ_HEAD_INITIALIZER(available_controllers);
 ControllerState *bound_controllers[4] = { NULL, NULL, NULL, NULL };
 uint16_t xemu_input_forced_buttons;
+static int64_t input_trace_t0_us, input_trace_until_us;
+
+void xemu_input_trace_start(double seconds)
+{
+    int64_t now = qemu_clock_get_us(QEMU_CLOCK_REALTIME);
+    qatomic_set(&input_trace_t0_us, now);
+    qatomic_set(&input_trace_until_us, now + (int64_t)(seconds * 1e6));
+}
+
+double xemu_input_trace_time(void)
+{
+    int64_t now = qemu_clock_get_us(QEMU_CLOCK_REALTIME);
+    if (now >= qatomic_read(&input_trace_until_us)) {
+        return -1;
+    }
+    return (now - qatomic_read(&input_trace_t0_us)) / 1e6;
+}
 const char *bound_drivers[4] = { DRIVER_DUKE, DRIVER_DUKE, DRIVER_DUKE,
                                  DRIVER_DUKE };
 int test_mode;

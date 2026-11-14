@@ -563,6 +563,11 @@ static void handle_windowevent(SDL_Event *ev)
 #endif
 
     case SDL_EVENT_WINDOW_FOCUS_GAINED:
+        if (xemu_input_trace_time() >= 0) {
+            fprintf(stderr, "input trace: +%.2f s window focus gained\n",
+                    xemu_input_trace_time());
+        }
+        /* fall through */
     case SDL_EVENT_WINDOW_MOUSE_ENTER:
         if (!gui_grab && (qemu_input_is_absolute(scon->dcl.con) || absolute_enabled)) {
             absolute_mouse_grab(scon);
@@ -577,6 +582,10 @@ static void handle_windowevent(SDL_Event *ev)
         scon->ignore_hotkeys = get_mod_state();
         break;
     case SDL_EVENT_WINDOW_FOCUS_LOST:
+        if (xemu_input_trace_time() >= 0) {
+            fprintf(stderr, "input trace: +%.2f s window focus lost\n",
+                    xemu_input_trace_time());
+        }
         if (gui_grab && !gui_fullscreen) {
             grab_end(scon);
         }
@@ -1309,6 +1318,11 @@ static void poll_events(struct xemu_console *scon)
 
         switch (ev->type) {
         case SDL_EVENT_KEY_DOWN:
+            if (xemu_input_trace_time() >= 0 && !ev->key.repeat) {
+                fprintf(stderr, "input trace: +%.2f s key down %d%s\n",
+                        xemu_input_trace_time(), (int)ev->key.scancode,
+                        kbd ? " (UI has the keyboard)" : "");
+            }
             if (kbd) break;
             handle_keydown(ev);
             break;
