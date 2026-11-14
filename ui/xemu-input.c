@@ -19,6 +19,7 @@
 
 
 #include "qemu/osdep.h"
+#include <glib/gstdio.h>
 #include "hw/qdev-core.h"
 #include "hw/qdev-properties.h"
 #include "qapi/error.h"
