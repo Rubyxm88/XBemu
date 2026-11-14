@@ -4,10 +4,15 @@
 // The XBL Dashboard reads the disc only when the player moves in its menu,
 // and OXOS keeps the old disc mounted until a read fails. So after a disc
 // change the first move shows "no disc" and the second the new disc. Here
-// xemu makes both moves itself (right, then left, back to where the player
-// was), under a blurred still of the screen with "Loading disc...", so the
-// player sees neither the moves nor the "no disc" in between, then "Disc
-// loaded" and the dashboard with the new disc.
+// xemu makes both moves itself, a move and its way back so the cursor ends
+// where the player left it, under a blurred still of the screen with
+// "Loading disc...", so the player sees neither the moves nor the "no disc"
+// in between, then "Disc loaded" and the dashboard with the new disc.
+//
+// xemu cannot see where the cursor is. A move the dashboard took makes it
+// look at the drive; one it could not take (the end of a row) does not. So
+// after each first move xemu watches the drive: nothing there, and it tries
+// the next pair (right/left, left/right, down/up, up/down).
 //
 // This program is free software; you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -28,14 +33,28 @@
 #include "../xemu-dashinstall.h"
 #include "../xemu-gamecache.h"
 
-// Seconds from the disc change
+// Seconds
 #define FADE_IN      0.30
-#define PRESS_RIGHT  0.80   // first move: the old mount's read fails
-#define PRESS_LEFT   2.30   // second move: the dashboard mounts the new disc
+#define FIRST_PRESS  0.80   // after the disc change
 #define PRESS_HOLD   0.25
-#define SHOW_LOADED  4.30   // "Disc loaded"
-#define FADE_OUT     5.30
+#define WATCH        0.90   // after a press: did the dashboard read the drive
+#define BACK_GAP     0.60   // then the way back (it mounts the new disc)
+#define MOUNT_TIME   1.00   // after the way back, before "Disc loaded"
+#define LOADED_TIME  1.00   // "Disc loaded" on screen
 #define FADE_TIME    0.40
+
+extern "C" uint32_t xemu_atapi_commands; // hw/ide/atapi.c
+
+// A move and its way back, in the order they are tried
+static const uint16_t pairs[4][2] = {
+    { CONTROLLER_BUTTON_DPAD_RIGHT, CONTROLLER_BUTTON_DPAD_LEFT },
+    { CONTROLLER_BUTTON_DPAD_LEFT, CONTROLLER_BUTTON_DPAD_RIGHT },
+    { CONTROLLER_BUTTON_DPAD_DOWN, CONTROLLER_BUTTON_DPAD_UP },
+    { CONTROLLER_BUTTON_DPAD_UP, CONTROLLER_BUTTON_DPAD_DOWN },
+};
+static const char *const pair_names[4][2] = {
+    { "right", "left" }, { "left", "right" }, { "down", "up" }, { "up", "down" },
+};
 
 // A dashboard must have run this long (ms), so a restart's leftovers don't
 // count
@@ -44,8 +63,13 @@
 static bool s_active;
 static double s_start;          // ImGui time; < 0 until the first frame
 static std::string s_name;
-static bool s_pressing;
 static uint16_t s_pressed;
+static int s_pair;             // which pair is being tried
+static bool s_moved;           // its first move was taken; next: the way back
+static double s_next_press;    // when the next press starts (seconds)
+static double s_press_at = -1; // when the last press started; < 0: none
+static uint32_t s_commands;    // drive commands before that press
+static double s_loaded_at = -1; // "Disc loaded" from then on
 static bool s_capture_pending;
 static bool s_have_still;
 
@@ -142,16 +166,48 @@ static void Stop(const char *why)
     fprintf(stderr, "disc refresh: %s\n", why);
 }
 
-// One move at its time: held PRESS_HOLD s, then let go
-static void Move(double t, double at, uint16_t button, const char *name)
+// The presses, one at a time: each held PRESS_HOLD s, then WATCH s to see
+// whether the dashboard read the drive
+static void Step(double t)
 {
-    if (t >= at && t < at + PRESS_HOLD) {
-        if (s_pressed != button) {
-            Press(button);
-            fprintf(stderr, "disc refresh: %s\n", name);
+    if (s_loaded_at >= 0) {
+        return;
+    }
+    if (s_press_at >= 0) {
+        if (s_pressed && t >= s_press_at + PRESS_HOLD) {
+            Release();
         }
-    } else if (s_pressed == button) {
-        Release();
+        if (t < s_press_at + WATCH) {
+            return;
+        }
+        bool read = __atomic_load_n(&xemu_atapi_commands, __ATOMIC_RELAXED) != s_commands;
+        s_press_at = -1;
+        if (s_moved) {
+            // The way back: the dashboard mounts the new disc now
+            fprintf(stderr, "disc refresh: back%s\n",
+                    read ? "" : " (no drive read)");
+            s_loaded_at = t + MOUNT_TIME;
+            return;
+        }
+        if (read) {
+            s_moved = true;
+            s_next_press = t + BACK_GAP;
+        } else if (++s_pair < 4) {
+            fprintf(stderr, "disc refresh: not taken, trying %s\n",
+                    pair_names[s_pair][0]);
+            s_next_press = t;
+        } else {
+            fprintf(stderr, "disc refresh: no move taken\n");
+            s_loaded_at = t;
+            return;
+        }
+    }
+    if (t >= s_next_press) {
+        int i = s_moved ? 1 : 0;
+        s_commands = __atomic_load_n(&xemu_atapi_commands, __ATOMIC_RELAXED);
+        s_press_at = t;
+        Press(pairs[s_pair][i]);
+        fprintf(stderr, "disc refresh: %s\n", pair_names[s_pair][i]);
     }
 }
 
@@ -173,6 +229,11 @@ extern "C" void xemu_disc_refresh_start(const char *path)
     Release();
     s_active = true;
     s_start = -1;
+    s_pair = 0;
+    s_moved = false;
+    s_next_press = FIRST_PRESS;
+    s_press_at = -1;
+    s_loaded_at = -1;
     s_capture_pending = true;
     s_have_still = false;
     fprintf(stderr, "disc refresh: start (%s)\n", s_name.c_str());
@@ -220,19 +281,18 @@ void DiscRefreshDraw()
         return;
     }
 
-    Move(t, PRESS_RIGHT, CONTROLLER_BUTTON_DPAD_RIGHT, "right");
-    Move(t, PRESS_LEFT, CONTROLLER_BUTTON_DPAD_LEFT, "left");
+    Step(t);
 
-    double end = FADE_OUT + FADE_TIME;
-    if (t >= end) {
+    double fade_out = s_loaded_at < 0 ? 1e9 : s_loaded_at + LOADED_TIME;
+    if (t >= fade_out + FADE_TIME) {
         Stop("done");
         return;
     }
     float a = 1.0f;
     if (t < FADE_IN) {
         a = (float)(t / FADE_IN);
-    } else if (t > FADE_OUT) {
-        a = (float)(1.0 - (t - FADE_OUT) / FADE_TIME);
+    } else if (t > fade_out) {
+        a = (float)(1.0 - (t - fade_out) / FADE_TIME);
     }
     a = a * a * (3 - 2 * a); // smooth
 
@@ -259,7 +319,7 @@ void DiscRefreshDraw()
     }
 
     // The card in the middle
-    bool done = t >= SHOW_LOADED;
+    bool done = s_loaded_at >= 0 && t >= s_loaded_at;
     float scale = g_viewport_mgr.m_scale;
     ImGui::PushStyleVar(ImGuiStyleVar_Alpha, a);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,
