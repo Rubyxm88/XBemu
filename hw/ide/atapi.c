@@ -1302,9 +1302,9 @@ static const struct AtapiCmd {
     /* [1] handler detects and reports not ready condition itself */
 };
 
-/* xemu: counted, so the disc refresh (ui/xui/disc-refresh.cc) can tell
- * whether the dashboard looked at the drive after a move */
-uint32_t xemu_atapi_commands;
+/* xemu: READ CAPACITY commands, counted: the disc refresh
+ * (ui/xui/disc-refresh.cc) waits for one, the dashboard mounting the disc */
+uint32_t xemu_atapi_capacity_reads;
 
 void ide_atapi_cmd(IDEState *s)
 {
@@ -1312,7 +1312,9 @@ void ide_atapi_cmd(IDEState *s)
     const struct AtapiCmd *cmd = &atapi_cmd_table[s->io_buffer[0]];
 
     trace_ide_atapi_cmd(s, s->io_buffer[0]);
-    qatomic_inc(&xemu_atapi_commands);
+    if (s->io_buffer[0] == GPCMD_READ_CDVD_CAPACITY) {
+        qatomic_inc(&xemu_atapi_capacity_reads);
+    }
 
     /* XEMU_ATAPI_TRACE: every command but disc reads, with the pending sense
      * (6 = unit attention: the disc changed), and the first read after one */

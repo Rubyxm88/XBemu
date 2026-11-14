@@ -3,16 +3,19 @@
 //
 // The XBL Dashboard reads the disc only when the player moves in its menu,
 // and OXOS keeps the old disc mounted until a read fails. So after a disc
-// change the first move shows "no disc" and the second the new disc. Here
-// xemu makes both moves itself, a move and its way back so the cursor ends
-// where the player left it, under a blurred still of the screen with
-// "Loading disc...", so the player sees neither the moves nor the "no disc"
-// in between, then "Disc loaded" and the dashboard with the new disc.
+// change the menu needs moves before the Disc tile shows the new disc. Here
+// xemu makes them itself, each move followed by its way back so the cursor
+// ends where the player left it, under a cover with the XBemu logo and
+// "Loading disc...", with the console's sound off so the menu clicks are not
+// heard. Then "Disc loaded", and the cover fades to the dashboard.
 //
-// xemu cannot see where the cursor is. A move the dashboard took makes it
-// look at the drive; one it could not take (the end of a row) does not. So
-// after each first move xemu watches the drive: nothing there, and it tries
-// the next pair (right/left, left/right, down/up, up/down).
+// xemu cannot ask where the cursor is, so it looks: a small copy of the
+// console's picture before and after a move. A move the dashboard took
+// changes the picture (the highlight moves); one at the end of a row does
+// not, and the next pair is tried (right/left, left/right, down/up,
+// up/down). The way back follows only a move that was taken. Pairs repeat
+// until the dashboard has mounted the new disc (the drive's READ CAPACITY,
+// counted in hw/ide/atapi.c).
 //
 // This program is free software; you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -21,12 +24,15 @@
 //
 #include <epoxy/gl.h>
 #include <math.h>
+#include <stdlib.h>
 #include <algorithm>
 #include <string>
+#include <vector>
 #include <filesystem>
 #include "common.hh"
 #include "disc-refresh.hh"
 #include "font-manager.hh"
+#include "gl-helpers.hh"
 #include "viewport-manager.hh"
 #include "../xemu-input.h"
 #include "../xemu-running-title.h"
@@ -34,18 +40,28 @@
 #include "../xemu-gamecache.h"
 
 // Seconds
-#define FADE_IN      0.30
+#define FADE_IN      0.35
 #define FIRST_PRESS  0.80   // after the disc change
-#define PRESS_HOLD   0.25
-#define WATCH        0.90   // after a press: did the dashboard read the drive
-#define BACK_GAP     0.60   // then the way back (it mounts the new disc)
-#define MOUNT_TIME   1.00   // after the way back, before "Disc loaded"
+#define PRESS_HOLD   0.20
+#define SETTLE       0.70   // after a press: the picture shows the move
+#define MOUNT_WAIT   2.00   // after a way back: time to mount the disc
 #define LOADED_TIME  1.00   // "Disc loaded" on screen
-#define FADE_TIME    0.40
+#define FADE_TIME    0.45
+#define DUCK_RAMP    0.20   // the sound fades out before the first press
 
-extern "C" uint32_t xemu_atapi_commands; // hw/ide/atapi.c
-extern "C" float xemu_audio_duck;        // hw/xbox/mcpx/apu/monitor.c
-#define DUCK_RAMP 0.20 // the menu sounds fade out before the first press
+#define MAX_ROUNDS 3        // move pairs taken before giving up
+
+// A dashboard must have run this long (ms), so a restart's leftovers don't
+// count
+#define DASH_UP_MS 3000
+
+// Thumbnail pixels that changed this much (0-255, any channel) count, and
+// this many of them (per mille of the thumbnail) mean the cursor moved
+#define DIFF_LEVEL    40
+#define DIFF_PERMILLE 2
+
+extern "C" uint32_t xemu_atapi_capacity_reads; // hw/ide/atapi.c
+extern "C" float xemu_audio_duck;              // hw/xbox/mcpx/apu/monitor.c
 
 // A move and its way back, in the order they are tried
 static const uint16_t pairs[4][2] = {
@@ -58,92 +74,108 @@ static const char *const pair_names[4][2] = {
     { "right", "left" }, { "left", "right" }, { "down", "up" }, { "up", "down" },
 };
 
-// A dashboard must have run this long (ms), so a restart's leftovers don't
-// count
-#define DASH_UP_MS 3000
+enum RefreshPhase {
+    PHASE_MOVE,     // next: a pair's first move
+    PHASE_MOVED,    // first move pressed, looking whether it was taken
+    PHASE_BACK,     // way back pressed
+    PHASE_MOUNT,    // waiting for the dashboard to mount the disc
+    PHASE_LOADED,   // "Disc loaded"
+};
 
 static bool s_active;
 static double s_start;          // ImGui time; < 0 until the first frame
 static std::string s_name;
 static uint16_t s_pressed;
-static int s_pair;             // which pair is being tried
-static bool s_moved;           // its first move was taken; next: the way back
-static double s_next_press;    // when the next press starts (seconds)
-static double s_press_at = -1; // when the last press started; < 0: none
-static uint32_t s_commands;    // drive commands before that press
-static double s_loaded_at = -1; // "Disc loaded" from then on
-static bool s_capture_pending;
-static bool s_have_still;
+static RefreshPhase s_phase;
+static double s_phase_at;       // seconds when the phase started
+static int s_pair, s_rounds;
+static uint32_t s_mounts;       // READ CAPACITY count at the start
+static double s_loaded_at;
 
-// Two textures: a quarter of the window, then a 24th (the blur)
-static GLuint s_tex[2], s_fbo[2];
-static int s_w[2], s_h[2];
+// The console's picture, small: a texture to scale into, and the pixels
+static GLuint s_tex, s_fbo;
+static int s_tw, s_th;
+static std::vector<uint8_t> s_thumb, s_before;
+static bool s_thumb_ok;
 
-static void EnsureTarget(int i, int w, int h)
+static void EnsureTarget(int w, int h)
 {
-    if (s_tex[i] && s_w[i] == w && s_h[i] == h) {
+    if (s_tex && s_tw == w && s_th == h) {
         return;
     }
-    if (!s_tex[i]) {
-        glGenTextures(1, &s_tex[i]);
-        glGenFramebuffers(1, &s_fbo[i]);
+    if (!s_tex) {
+        glGenTextures(1, &s_tex);
+        glGenFramebuffers(1, &s_fbo);
     }
-    glBindTexture(GL_TEXTURE_2D, s_tex[i]);
+    glBindTexture(GL_TEXTURE_2D, s_tex);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, w, h, 0, GL_RGBA,
                  GL_UNSIGNED_BYTE, NULL);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glBindFramebuffer(GL_FRAMEBUFFER, s_fbo[i]);
+    glBindFramebuffer(GL_FRAMEBUFFER, s_fbo);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
-                           GL_TEXTURE_2D, s_tex[i], 0);
-    s_w[i] = w;
-    s_h[i] = h;
+                           GL_TEXTURE_2D, s_tex, 0);
+    s_tw = w;
+    s_th = h;
 }
 
+// Each frame while active, right after the console's picture is drawn (and
+// before the cover): an eighth-size copy of it, read back
 void DiscRefreshCapture(int width, int height)
 {
-    if (!s_capture_pending || width <= 0 || height <= 0) {
+    if (!s_active || width < 8 || height < 8) {
         return;
     }
-    s_capture_pending = false;
-
-    GLint draw_fb = 0, read_fb = 0, tex = 0;
+    GLint draw_fb = 0, read_fb = 0, tex = 0, pack = 4;
     glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &draw_fb);
     glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &read_fb);
     glGetIntegerv(GL_TEXTURE_BINDING_2D, &tex);
+    glGetIntegerv(GL_PACK_ALIGNMENT, &pack);
     GLboolean scissor = glIsEnabled(GL_SCISSOR_TEST);
     glDisable(GL_SCISSOR_TEST);
     while (glGetError() != GL_NO_ERROR) {
     }
 
-    int w0 = std::max(width / 4, 1), h0 = std::max(height / 4, 1);
-    int w1 = std::max(width / 24, 1), h1 = std::max(height / 24, 1);
-    EnsureTarget(0, w0, h0);
-    EnsureTarget(1, w1, h1);
-
-    // The window as shown, scaled down twice with filtering: a soft blur
+    int w = width / 8, h = height / 8;
+    EnsureTarget(w, h);
     glBindFramebuffer(GL_READ_FRAMEBUFFER, draw_fb);
-    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, s_fbo[0]);
-    glBlitFramebuffer(0, 0, width, height, 0, 0, w0, h0, GL_COLOR_BUFFER_BIT,
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, s_fbo);
+    glBlitFramebuffer(0, 0, width, height, 0, 0, w, h, GL_COLOR_BUFFER_BIT,
                       GL_LINEAR);
-    glBindFramebuffer(GL_READ_FRAMEBUFFER, s_fbo[0]);
-    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, s_fbo[1]);
-    glBlitFramebuffer(0, 0, w0, h0, 0, 0, w1, h1, GL_COLOR_BUFFER_BIT,
-                      GL_LINEAR);
-    s_have_still = glGetError() == GL_NO_ERROR;
-    if (!s_have_still) {
-        fprintf(stderr, "disc refresh: no still of the screen, dark cover "
-                        "only\n");
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, s_fbo);
+    s_thumb.resize((size_t)w * h * 4);
+    glPixelStorei(GL_PACK_ALIGNMENT, 1);
+    glReadPixels(0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, s_thumb.data());
+    bool ok = glGetError() == GL_NO_ERROR;
+    if (!ok && s_thumb_ok) {
+        fprintf(stderr, "disc refresh: no copy of the picture\n");
     }
+    s_thumb_ok = ok;
 
+    glPixelStorei(GL_PACK_ALIGNMENT, pack);
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, draw_fb);
     glBindFramebuffer(GL_READ_FRAMEBUFFER, read_fb);
     glBindTexture(GL_TEXTURE_2D, tex);
     if (scissor) {
         glEnable(GL_SCISSOR_TEST);
     }
+}
+
+// Per mille of the thumbnail's pixels that changed since s_before; -1 when
+// there is nothing to compare
+static int Changed(void)
+{
+    if (!s_thumb_ok || s_before.empty() || s_before.size() != s_thumb.size()) {
+        return -1;
+    }
+    size_t n = s_thumb.size() / 4, changed = 0;
+    for (size_t i = 0; i < n; i++) {
+        const uint8_t *a = &s_before[i * 4], *b = &s_thumb[i * 4];
+        int d = std::max({ abs(a[0] - b[0]), abs(a[1] - b[1]),
+                           abs(a[2] - b[2]) });
+        changed += d >= DIFF_LEVEL;
+    }
+    return (int)(changed * 1000 / n);
 }
 
 static void Press(uint16_t button)
@@ -174,48 +206,80 @@ static void Stop(const char *why)
     fprintf(stderr, "disc refresh: %s\n", why);
 }
 
-// The presses, one at a time: each held PRESS_HOLD s, then WATCH s to see
-// whether the dashboard read the drive
+static void SetPhase(RefreshPhase phase, double t)
+{
+    s_phase = phase;
+    s_phase_at = t;
+}
+
+static void Loaded(double t, const char *why)
+{
+    fprintf(stderr, "disc refresh: %s\n", why);
+    s_loaded_at = t;
+    SetPhase(PHASE_LOADED, t);
+}
+
+static bool Mounted(void)
+{
+    return __atomic_load_n(&xemu_atapi_capacity_reads, __ATOMIC_RELAXED) !=
+           s_mounts;
+}
+
+// The presses, one at a time, each held PRESS_HOLD s
 static void Step(double t)
 {
-    if (s_loaded_at >= 0) {
+    if (s_pressed && t >= s_phase_at + PRESS_HOLD) {
+        Release();
+    }
+    switch (s_phase) {
+    case PHASE_MOVE:
+        if (t < FIRST_PRESS) {
+            return;
+        }
+        s_before = s_thumb;
+        Press(pairs[s_pair][0]);
+        fprintf(stderr, "disc refresh: %s\n", pair_names[s_pair][0]);
+        SetPhase(PHASE_MOVED, t);
+        return;
+    case PHASE_MOVED: {
+        if (t < s_phase_at + SETTLE) {
+            return;
+        }
+        int changed = Changed();
+        fprintf(stderr, "disc refresh: picture changed %d/1000\n", changed);
+        if (changed >= DIFF_PERMILLE || changed < 0) {
+            // Taken (or no way to tell: then as if taken)
+            Press(pairs[s_pair][1]);
+            fprintf(stderr, "disc refresh: %s (back)\n",
+                    pair_names[s_pair][1]);
+            SetPhase(PHASE_BACK, t);
+        } else if (++s_pair < 4) {
+            fprintf(stderr, "disc refresh: not taken\n");
+            SetPhase(PHASE_MOVE, t);
+        } else {
+            Loaded(t, "no move taken");
+        }
         return;
     }
-    if (s_press_at >= 0) {
-        if (s_pressed && t >= s_press_at + PRESS_HOLD) {
-            Release();
+    case PHASE_BACK:
+        if (t >= s_phase_at + PRESS_HOLD) {
+            SetPhase(PHASE_MOUNT, t);
         }
-        if (t < s_press_at + WATCH) {
-            return;
+        return;
+    case PHASE_MOUNT:
+        if (Mounted()) {
+            Loaded(t + 0.3, "mounted");
+        } else if (t >= s_phase_at + MOUNT_WAIT) {
+            if (++s_rounds < MAX_ROUNDS) {
+                fprintf(stderr, "disc refresh: not mounted yet, again\n");
+                SetPhase(PHASE_MOVE, t);
+            } else {
+                Loaded(t, "not mounted, gave up");
+            }
         }
-        bool read = __atomic_load_n(&xemu_atapi_commands, __ATOMIC_RELAXED) != s_commands;
-        s_press_at = -1;
-        if (s_moved) {
-            // The way back: the dashboard mounts the new disc now
-            fprintf(stderr, "disc refresh: back%s\n",
-                    read ? "" : " (no drive read)");
-            s_loaded_at = t + MOUNT_TIME;
-            return;
-        }
-        if (read) {
-            s_moved = true;
-            s_next_press = t + BACK_GAP;
-        } else if (++s_pair < 4) {
-            fprintf(stderr, "disc refresh: not taken, trying %s\n",
-                    pair_names[s_pair][0]);
-            s_next_press = t;
-        } else {
-            fprintf(stderr, "disc refresh: no move taken\n");
-            s_loaded_at = t;
-            return;
-        }
-    }
-    if (t >= s_next_press) {
-        int i = s_moved ? 1 : 0;
-        s_commands = __atomic_load_n(&xemu_atapi_commands, __ATOMIC_RELAXED);
-        s_press_at = t;
-        Press(pairs[s_pair][i]);
-        fprintf(stderr, "disc refresh: %s\n", pair_names[s_pair][i]);
+        return;
+    case PHASE_LOADED:
+        return;
     }
 }
 
@@ -238,12 +302,11 @@ extern "C" void xemu_disc_refresh_start(const char *path)
     s_active = true;
     s_start = -1;
     s_pair = 0;
-    s_moved = false;
-    s_next_press = FIRST_PRESS;
-    s_press_at = -1;
+    s_rounds = 0;
     s_loaded_at = -1;
-    s_capture_pending = true;
-    s_have_still = false;
+    s_before.clear();
+    s_mounts = __atomic_load_n(&xemu_atapi_capacity_reads, __ATOMIC_RELAXED);
+    SetPhase(PHASE_MOVE, 0);
     fprintf(stderr, "disc refresh: start (%s)\n", s_name.c_str());
 }
 
@@ -266,8 +329,7 @@ static void DrawMark(bool done, double t, float size)
                       3.0f * scale);
         float a0 = (float)(t * 5.0);
         dl->PathArcTo(c, r - 2 * scale, a0, a0 + 4.2f, 32);
-        dl->PathStroke(IM_COL32(40, 190, 40, 255), 0,
-                       3.0f * scale);
+        dl->PathStroke(IM_COL32(40, 190, 40, 255), 0, 3.0f * scale);
     }
     ImGui::Dummy(ImVec2(size, size));
 }
@@ -292,16 +354,15 @@ void DiscRefreshDraw()
     Step(t);
 
     // The console's sound off from just before the first press until
-    // "Disc loaded" (well after the last press: its click is still queued
-    // for a moment), so the moves make no menu sounds
+    // "Disc loaded" (a click is still queued for a moment after its press),
+    // so the moves make no menu sounds
     float duck;
     if (s_loaded_at < 0 || t < s_loaded_at) {
         duck = (float)(1.0 - (t - (FIRST_PRESS - DUCK_RAMP)) / DUCK_RAMP);
     } else {
         duck = (float)((t - s_loaded_at) / DUCK_RAMP);
     }
-    duck = std::min(1.0f, std::max(0.0f, duck));
-    SetDuck(duck);
+    SetDuck(std::min(1.0f, std::max(0.0f, duck)));
 
     double fade_out = s_loaded_at < 0 ? 1e9 : s_loaded_at + LOADED_TIME;
     if (t >= fade_out + FADE_TIME) {
@@ -316,38 +377,19 @@ void DiscRefreshDraw()
     }
     a = a * a * (3 - 2 * a); // smooth
 
+    // The cover, as the XBL Dashboard setup's
     const ImGuiViewport *vp = ImGui::GetMainViewport();
-    ImVec2 p0 = vp->Pos, p1(vp->Pos.x + vp->Size.x, vp->Pos.y + vp->Size.y);
-    ImDrawList *bg = ImGui::GetBackgroundDrawList();
-    if (s_have_still) {
-        // The blurred still, plus four half-texel taps to soften it
-        ImTextureID id = (ImTextureID)(intptr_t)s_tex[1];
-        ImVec2 uv0(0, 1), uv1(1, 0); // GL rows run bottom up
-        bg->AddImage(id, p0, p1, uv0, uv1,
-                     IM_COL32(255, 255, 255, (int)(255 * a)));
-        float dx = vp->Size.x / s_w[1] * 0.5f, dy = vp->Size.y / s_h[1] * 0.5f;
-        const float offs[4][2] = { { -dx, -dy }, { dx, -dy },
-                                   { -dx, dy }, { dx, dy } };
-        for (auto &o : offs) {
-            bg->AddImage(id, ImVec2(p0.x + o[0], p0.y + o[1]),
-                         ImVec2(p1.x + o[0], p1.y + o[1]), uv0, uv1,
-                         IM_COL32(255, 255, 255, (int)(60 * a)));
-        }
-        bg->AddRectFilled(p0, p1, IM_COL32(0, 0, 0, (int)(110 * a)));
-    } else {
-        bg->AddRectFilled(p0, p1, IM_COL32(8, 10, 8, (int)(235 * a)));
-    }
+    ImGui::GetBackgroundDrawList()->AddRectFilled(
+        vp->Pos, ImVec2(vp->Pos.x + vp->Size.x, vp->Pos.y + vp->Size.y),
+        IM_COL32(12, 14, 12, (int)(255 * a)));
 
-    // The card in the middle
-    bool done = s_loaded_at >= 0 && t >= s_loaded_at;
+    bool done = s_phase == PHASE_LOADED && t >= s_loaded_at;
     float scale = g_viewport_mgr.m_scale;
     ImGui::PushStyleVar(ImGuiStyleVar_Alpha, a);
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,
-                        ImVec2(26.0f * scale, 20.0f * scale));
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 12.0f * scale);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
     ImGui::SetNextWindowPos(vp->GetCenter(), ImGuiCond_Always,
                             ImVec2(0.5f, 0.5f));
-    ImGui::SetNextWindowBgAlpha(0.90f);
+    ImGui::SetNextWindowBgAlpha(0.0f);
     if (ImGui::Begin("##disc-refresh", NULL,
                      ImGuiWindowFlags_NoDecoration |
                          ImGuiWindowFlags_NoMove |
@@ -355,19 +397,41 @@ void DiscRefreshDraw()
                          ImGuiWindowFlags_NoFocusOnAppearing |
                          ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoInputs |
                          ImGuiWindowFlags_AlwaysAutoResize)) {
+        float lw = std::min(vp->Size.x * 0.6f, 420.0f * scale);
+        if (g_xbemu_logo_tex && g_xbemu_logo_w > 0) {
+            float lh = lw * g_xbemu_logo_h / g_xbemu_logo_w;
+            ImGui::Image((ImTextureID)(intptr_t)g_xbemu_logo_tex,
+                         ImVec2(lw, lh));
+            ImGui::Dummy(ImVec2(0, 22.0f * scale));
+        } else {
+            ImGui::Dummy(ImVec2(lw, 0));
+        }
+
+        // Mark and words, centred under the logo
         ImGui::PushFont(g_font_mgr.m_menu_font);
-        float size = ImGui::GetTextLineHeight() * 1.6f;
-        DrawMark(done, t, size);
-        ImGui::SameLine(0, 16.0f * scale);
-        ImGui::BeginGroup();
-        ImGui::Text("%s", done ? "Disc loaded" : "Loading disc...");
+        const char *title = done ? "Disc loaded" : "Loading disc...";
+        float size = ImGui::GetTextLineHeight() * 1.5f;
+        ImVec2 tsz = ImGui::CalcTextSize(title);
         ImGui::PopFont();
         ImGui::PushFont(g_font_mgr.m_default_font);
-        ImGui::TextColored(ImVec4(0.72f, 0.80f, 0.72f, 1.0f), "%s",
+        ImVec2 nsz = ImGui::CalcTextSize(s_name.c_str());
+        ImGui::PopFont();
+        float gap = 14.0f * scale;
+        float row = size + gap + std::max(tsz.x, nsz.x);
+        ImGui::SetCursorPosX(ImGui::GetCursorPosX() +
+                             std::max(0.0f, (lw - row) / 2));
+        DrawMark(done, t, size);
+        ImGui::SameLine(0, gap);
+        ImGui::BeginGroup();
+        ImGui::PushFont(g_font_mgr.m_menu_font);
+        ImGui::Text("%s", title);
+        ImGui::PopFont();
+        ImGui::PushFont(g_font_mgr.m_default_font);
+        ImGui::TextColored(ImVec4(0.62f, 0.65f, 0.66f, 1.0f), "%s",
                            s_name.c_str());
         ImGui::PopFont();
         ImGui::EndGroup();
     }
     ImGui::End();
-    ImGui::PopStyleVar(3);
+    ImGui::PopStyleVar(2);
 }
