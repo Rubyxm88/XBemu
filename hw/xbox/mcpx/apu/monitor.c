@@ -95,6 +95,10 @@ void mcpx_apu_monitor_finalize(MCPXAPUState *d)
     }
 }
 
+/* xemu: 0..1, lowered by the UI for a moment (ui/xui/disc-refresh.cc mutes
+ * the dashboard's menu sounds while it moves in the menu) */
+float xemu_audio_duck = 1.0f;
+
 void mcpx_apu_monitor_frame(MCPXAPUState *d)
 {
     if ((d->ep_frame_div + 1) % 8) {
@@ -103,6 +107,9 @@ void mcpx_apu_monitor_frame(MCPXAPUState *d)
 
     if (d->monitor.stream) {
         float vu = pow(fmax(0.0, fmin(g_config.audio.volume_limit, 1.0)), M_E);
+        float duck;
+        __atomic_load(&xemu_audio_duck, &duck, __ATOMIC_RELAXED);
+        vu *= fmaxf(0.0f, fminf(duck, 1.0f));
         SDL_SetAudioStreamGain(d->monitor.stream, vu);
         if (d->monitor.channels == 6) {
             /* Fast sound mixed 6 channels itself; the DSP paths are stereo,

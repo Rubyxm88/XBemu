@@ -44,6 +44,8 @@
 #define FADE_TIME    0.40
 
 extern "C" uint32_t xemu_atapi_commands; // hw/ide/atapi.c
+extern "C" float xemu_audio_duck;        // hw/xbox/mcpx/apu/monitor.c
+#define DUCK_RAMP 0.20 // the menu sounds fade out before the first press
 
 // A move and its way back, in the order they are tried
 static const uint16_t pairs[4][2] = {
@@ -159,9 +161,15 @@ static void Release(void)
     }
 }
 
+static void SetDuck(float value)
+{
+    __atomic_store(&xemu_audio_duck, &value, __ATOMIC_RELAXED);
+}
+
 static void Stop(const char *why)
 {
     Release();
+    SetDuck(1.0f);
     s_active = false;
     fprintf(stderr, "disc refresh: %s\n", why);
 }
@@ -282,6 +290,18 @@ void DiscRefreshDraw()
     }
 
     Step(t);
+
+    // The console's sound off from just before the first press until
+    // "Disc loaded" (well after the last press: its click is still queued
+    // for a moment), so the moves make no menu sounds
+    float duck;
+    if (s_loaded_at < 0 || t < s_loaded_at) {
+        duck = (float)(1.0 - (t - (FIRST_PRESS - DUCK_RAMP)) / DUCK_RAMP);
+    } else {
+        duck = (float)((t - s_loaded_at) / DUCK_RAMP);
+    }
+    duck = std::min(1.0f, std::max(0.0f, duck));
+    SetDuck(duck);
 
     double fade_out = s_loaded_at < 0 ? 1e9 : s_loaded_at + LOADED_TIME;
     if (t >= fade_out + FADE_TIME) {

@@ -62,6 +62,10 @@ void ActionLoadDisc(void)
     });
 }
 
+// The disc going in by itself once a fresh dashboard is up: that dashboard
+// reads it without help, so no disc refresh
+static bool auto_insert;
+
 void ActionLoadDiscFile(const char *file_path)
 {
     Error *err = NULL;
@@ -72,7 +76,9 @@ void ActionLoadDiscFile(const char *file_path)
         error_free(err);
     } else {
         // On the XBL Dashboard: make it show the new disc
-        xemu_disc_refresh_start(file_path);
+        if (!auto_insert) {
+            xemu_disc_refresh_start(file_path);
+        }
         const char *games_dir = g_config.general.games_dir;
         if (!games_dir || !games_dir[0]) {
             std::string dir = std::filesystem::path(file_path).parent_path().string();
@@ -160,7 +166,9 @@ void ActionPoll(void)
         pending_insert.clear();
         fprintf(stderr, "insert disc: %s (after %u ms)\n", path.c_str(),
                 (unsigned)waited);
+        auto_insert = true;
         ActionLoadDiscFile(path.c_str());
+        auto_insert = false;
     }
 }
 
