@@ -27,6 +27,7 @@
 // (at your option) any later version.
 //
 #include "common.hh"
+#include "i18n.hh"
 #include "versions.hh"
 #include "build-number.hh"
 #include "actions.hh"
@@ -396,11 +397,11 @@ gpointer VersionsWindow::LoadThread(gpointer opaque)
     int installed = Installed().build;
 
     if (code != 200) {
-        error = err ? std::string("Could not reach GitHub: ") +
-                          error_get_pretty(err)
-                    : "GitHub answered " + std::to_string(code) +
-                          (code == 403 ? " (asked too often; try again in an "
-                                         "hour)." : ".");
+        error = err ? TrF("Could not reach GitHub: %s", error_get_pretty(err))
+                : code == 403
+                    ? TrF("GitHub answered %ld (asked too often; try again "
+                          "in an hour).", (long)code)
+                    : TrF("GitHub answered %ld.", (long)code);
     } else {
         try {
             json releases = json::parse(
@@ -918,8 +919,8 @@ void VersionsWindow::Draw()
         ImGui::SameLine();
         ImGui::BeginDisabled(stable == 0 || m_installing);
         PushGreenButtons();
-        if (ImGui::SmallButton(stable ? ("Go back to stable " +
-                                         BuildText(stable) + " now").c_str()
+        if (ImGui::SmallButton(stable ? TrF("Go back to stable %s now",
+                                            BuildText(stable).c_str()).c_str()
                                       : "Go back to stable now")) {
             m_confirm = stable;
             m_install_error.clear();

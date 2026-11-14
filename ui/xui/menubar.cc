@@ -20,6 +20,7 @@
 #include "common.hh"
 #include "main-menu.hh"
 #include "menubar.hh"
+#include "i18n.hh"
 #include "misc.hh"
 #include "widgets.hh"
 #include "monitor.hh"
@@ -517,11 +518,11 @@ static void MachineMenu(bool running)
                     (**(g_snapshot_shortcut_index_key_map[i]) != 0);
 
             if (bound) {
-                load_name = g_strdup_printf("Load '%s'", *(g_snapshot_shortcut_index_key_map[i]));
-                save_name = g_strdup_printf("Save '%s'", *(g_snapshot_shortcut_index_key_map[i]));
+                load_name = g_strdup(TrF("Load '%s'", *(g_snapshot_shortcut_index_key_map[i])).c_str());
+                save_name = g_strdup(TrF("Save '%s'", *(g_snapshot_shortcut_index_key_map[i])).c_str());
             } else {
-                load_name = g_strdup_printf("Load F%d (Unbound)", i + 5);
-                save_name = g_strdup_printf("Save F%d (Unbound)", i + 5);
+                load_name = g_strdup(TrF("Load F%d (Unbound)", i + 5).c_str());
+                save_name = g_strdup(TrF("Save F%d (Unbound)", i + 5).c_str());
             }
 
             ImGui::Separator();
@@ -586,7 +587,7 @@ static void PlayMenu()
     MenuHeader("Games");
     std::filesystem::path current(g_config.sys.files.dvd_path);
     for (const auto &[label, path] : games) {
-        std::string item = "Load " + label;
+        std::string item = TrF("Load %s", label.c_str());
         bool loaded = std::filesystem::equivalent(current, path, ec);
         if (ImGui::MenuItem(item.c_str(), NULL, loaded)) {
             ActionChooseGame(path.c_str());
@@ -764,8 +765,9 @@ static void GraphicsMenu()
 
     MenuHeader("Quality");
     int scale = nv2a_get_surface_scale_factor();
-    char scale_label[32];
-    snprintf(scale_label, sizeof(scale_label), "Resolution: %dx", scale);
+    char scale_label[96];
+    snprintf(scale_label, sizeof(scale_label), "%s",
+             TrF("Resolution: %dx", scale).c_str());
     if (ImGui::BeginMenu(scale_label)) {
         static const char *const scales[] = {
             "1x (640x480, fastest)", "2x (1280x960)", "3x (1920x1440)",
@@ -997,6 +999,24 @@ static void HelpMenu()
     if (ImGui::MenuItem("Versions & Updates...")) {
         versions_window.Open();
     }
+    if (!I18nIsEnglish()) {
+        bool flash = I18nFlashReportItem();
+        if (ImGui::MenuItem(kI18nReportItem)) {
+            I18nOpenReport();
+        }
+        if (flash) {
+            // "Show me" from the language notice: a pulsing frame
+            float k = 0.5f + 0.5f * sinf((float)ImGui::GetTime() * 6.0f);
+            ImGui::GetForegroundDrawList()->AddRect(
+                ImGui::GetItemRectMin(), ImGui::GetItemRectMax(),
+                IM_COL32(92, 210, 98, (int)(110 + 145 * k)),
+                4.0f * g_viewport_mgr.m_scale, 0,
+                2.0f * g_viewport_mgr.m_scale);
+        }
+        MenuItemHelp("Something in your language reads wrong or is "
+                     "cut off? Tell us, and it gets fixed in a later "
+                     "build.");
+    }
     ImGui::Separator();
     if (ImGui::MenuItem("About")) g_main_menu.ShowAbout();
 }
@@ -1034,6 +1054,9 @@ void ShowMainMenu()
         if (ImGui::BeginMenu("Troubleshoot")) {
             TroubleshootMenu();
             ImGui::EndMenu();
+        }
+        if (I18nWantsHelpMenuOpen()) {
+            ImGui::OpenPopup("Help"); // the language notice's "Show me"
         }
         if (ImGui::BeginMenu("Help")) {
             HelpMenu();

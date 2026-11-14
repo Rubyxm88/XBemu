@@ -34,6 +34,7 @@
 #include "system/reset.h"
 #include "eeprom_generation.h"
 #include "xbox-audio-setting.h"
+#include "xbox-language.h"
 
 #define TYPE_SMBUS_STORAGE "smbus-storage"
 #define SMBUS_STORAGE(obj) OBJECT_CHECK(SMBusStorageDevice, (obj), \
@@ -87,6 +88,7 @@ static bool smbus_storage_save(SMBusStorageDevice *s)
 #define EEPROM_USER_CHECKSUM 0x60
 #define EEPROM_USER 0x64
 #define EEPROM_USER_CHECKED_LEN 0x5C
+#define EEPROM_LANGUAGE 0x90
 #define EEPROM_AUDIO_FLAGS 0x98
 
 static SMBusStorageDevice *eeprom_dev;
@@ -107,6 +109,15 @@ bool xbox_audio_setting_get(uint32_t *now, uint32_t *booted)
     }
     *now = ldl_le_p(eeprom_dev->data + EEPROM_AUDIO_FLAGS);
     *booted = eeprom_booted_known ? eeprom_booted_audio : *now;
+    return true;
+}
+
+bool xbox_language_get(uint32_t *language)
+{
+    if (!eeprom_dev) {
+        return false;
+    }
+    *language = ldl_le_p(eeprom_dev->data + EEPROM_LANGUAGE);
     return true;
 }
 

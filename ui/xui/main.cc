@@ -60,6 +60,7 @@
 #include "game-cache.hh"
 #include "dash-install.hh"
 #include "disc-refresh.hh"
+#include "i18n.hh"
 #include "../xemu-dashinstall.h"
 #include "../xemu-xbonline.h"
 #include "../xemu-running-title.h"
@@ -233,6 +234,7 @@ void xemu_hud_update(void)
     io.BackendFlags |= ImGuiBackendFlags_HasGamepad;
     g_input_mgr.Update();
 
+    I18nUpdate();
     ImGui::NewFrame();
     ProcessKeyboardShortcuts();
 
@@ -249,7 +251,8 @@ void xemu_hud_update(void)
         float alpha = 1.0;
         const uint32_t timeout = 5000;
         const float fade_duration = 1000.0;
-        bool menu_wakeup = g_input_mgr.MouseMoved();
+        bool menu_wakeup = g_input_mgr.MouseMoved() ||
+                           I18nKeepMenuBarAwake();
         if (menu_wakeup) {
             last_check = now;
         }
@@ -451,6 +454,7 @@ void xemu_hud_update(void)
     PopupStackReset();
     DashInstallDraw();
     DiscRefreshDraw();
+    I18nDraw();
     if (!first_boot_window.is_open) DrawRecordingBadge();
     if (!first_boot_window.is_open) xbcheck_window.Draw();
     xemu_running_title_poll();

@@ -24,6 +24,7 @@
 #include "xemu-xbonline.h"
 #include "xemu-running-title.h"
 #include "xemu-xbcheck.h"
+#include "xemu-i18n.h"
 #include <SDL3/SDL.h>
 #ifdef _WIN32
 #include <iphlpapi.h>
@@ -61,28 +62,46 @@ static int item_add(const char *name)
     items[i].action = XBCHECK_ACTION_NONE;
     items[i].sha256[0] = 0;
     snprintf(items[i].detail, sizeof(items[i].detail), "Checking...");
+    snprintf(items[i].detail_tr, sizeof(items[i].detail_tr), "%s",
+             xemu_i18n_tr("Checking..."));
     qemu_mutex_unlock(&lock);
     return i;
 }
 
-static void G_GNUC_PRINTF(3, 4)
-item_set(int i, XbCheckState state, const char *fmt, ...)
+/* The result in English (logged) and in XBemu's language (shown) */
+static void item_set_texts(int i, XbCheckState state, const char *detail,
+                           const char *detail_tr)
 {
     static const char *const names[] = {
         [XBCHECK_RUNNING] = "...", [XBCHECK_OK] = "ok",
         [XBCHECK_INFO] = "info",   [XBCHECK_WARN] = "WARNING",
         [XBCHECK_FAIL] = "PROBLEM",
     };
-    va_list ap;
 
     qemu_mutex_lock(&lock);
-    va_start(ap, fmt);
-    vsnprintf(items[i].detail, sizeof(items[i].detail), fmt, ap);
-    va_end(ap);
+    snprintf(items[i].detail, sizeof(items[i].detail), "%s", detail);
+    snprintf(items[i].detail_tr, sizeof(items[i].detail_tr), "%s",
+             detail_tr);
     items[i].state = state;
     fprintf(stderr, "xbcheck: %s: %s: %s\n", items[i].name, names[state],
             items[i].detail);
     qemu_mutex_unlock(&lock);
+}
+
+/* The format is translated as a whole, then filled in the same way */
+static void G_GNUC_PRINTF(3, 4)
+item_set(int i, XbCheckState state, const char *fmt, ...)
+{
+    char detail[XBCHECK_DETAIL_LEN], detail_tr[XBCHECK_DETAIL_LEN];
+    va_list ap;
+
+    va_start(ap, fmt);
+    vsnprintf(detail, sizeof(detail), fmt, ap);
+    va_end(ap);
+    va_start(ap, fmt);
+    vsnprintf(detail_tr, sizeof(detail_tr), xemu_i18n_tr(fmt), ap);
+    va_end(ap);
+    item_set_texts(i, state, detail, detail_tr);
 }
 
 /* Offers a Copy SHA-256 button for the title update found, and logs it */
@@ -351,22 +370,26 @@ static void check_route(void)
 static int dns_item = -1;
 static XbCheckState dns_state;
 static char dns_detail[XBCHECK_DETAIL_LEN];
+static char dns_detail_tr[XBCHECK_DETAIL_LEN];
 static char dns_note[160];
+static char dns_note_tr[240];
 
 /* Show the server result with the fallback note, if any */
 static void dns_publish(void)
 {
     XbCheckState state;
-    char detail[XBCHECK_DETAIL_LEN];
+    char detail[XBCHECK_DETAIL_LEN], detail_tr[XBCHECK_DETAIL_LEN];
     int i;
 
     qemu_mutex_lock(&lock);
     i = dns_detail[0] ? dns_item : -1; /* nothing to add to before a result */
     state = dns_state == XBCHECK_OK && dns_note[0] ? XBCHECK_INFO : dns_state;
     snprintf(detail, sizeof(detail), "%s%s", dns_detail, dns_note);
+    snprintf(detail_tr, sizeof(detail_tr), "%s%s", dns_detail_tr,
+             dns_note_tr);
     qemu_mutex_unlock(&lock);
     if (i >= 0) {
-        item_set(i, state, "%s", detail);
+        item_set_texts(i, state, detail, detail_tr);
     }
 }
 
@@ -378,6 +401,9 @@ dns_result(XbCheckState state, const char *fmt, ...)
     qemu_mutex_lock(&lock);
     va_start(ap, fmt);
     vsnprintf(dns_detail, sizeof(dns_detail), fmt, ap);
+    va_end(ap);
+    va_start(ap, fmt);
+    vsnprintf(dns_detail_tr, sizeof(dns_detail_tr), xemu_i18n_tr(fmt), ap);
     va_end(ap);
     dns_state = state;
     qemu_mutex_unlock(&lock);
@@ -488,14 +514,15 @@ static void check_clock(void)
     } else if (offset > CLOCK_LIMIT_SECONDS || offset < -CLOCK_LIMIT_SECONDS) {
         int64_t a = offset < 0 ? -offset : offset;
         item_set(i, XBCHECK_FAIL,
-                 "This PC's clock is %" PRId64 " h %" PRId64 " min %s. Xbox "
+                 "This PC's clock is %lld h %lld min %s. Xbox "
                  "Live sign-in fails when it is off by more than 2 minutes. "
                  "Windows Settings > Time: turn on Set time automatically and "
                  "Set time zone automatically, press Sync now, restart.",
-                 a / 3600, (a / 60) % 60, offset < 0 ? "behind" : "ahead");
+                 (long long)(a / 3600), (long long)((a / 60) % 60),
+                 xemu_i18n_tr(offset < 0 ? "behind" : "ahead"));
     } else {
-        item_set(i, XBCHECK_OK, "Right to within %" PRId64 " s (%s).",
-                 offset < 0 ? -offset : offset, server);
+        item_set(i, XBCHECK_OK, "Right to within %lld s (%s).",
+                 (long long)(offset < 0 ? -offset : offset), server);
     }
 }
 
@@ -687,12 +714,12 @@ static void check_title_update(void)
         item_set(i, XBCHECK_FAIL,
                  "%s installed (version %x, SHA-256 %.12s...), not the %s "
                  "update the other players have. Start the game from the "
-                 "XBL Dashboard to update it.", which, xbe.version, xbe.header_sha256,
+                 "XBL Dashboard to update it.", xemu_i18n_tr(which), xbe.version, xbe.header_sha256,
                  XEMU_XBONLINE_TITLE_UPDATE_NAME);
 #else
         item_set(i, XBCHECK_INFO,
                  "%s installed (version %x, SHA-256 %.12s...), %d map "
-                 "pack%s.", which, xbe.version, xbe.header_sha256, maps,
+                 "pack%s.", xemu_i18n_tr(which), xbe.version, xbe.header_sha256, maps,
                  maps == 1 ? "" : "s");
 #endif
     }
@@ -792,7 +819,7 @@ void xemu_xbcheck_note_port_busy(int port)
 
 void xemu_xbcheck_note_dns_fallback(void)
 {
-    char note[sizeof(dns_note)];
+    char note[sizeof(dns_note)], note_tr[sizeof(dns_note_tr)];
     const char *name;
     int count;
     bool timed_out, changed;
@@ -800,15 +827,20 @@ void xemu_xbcheck_note_dns_fallback(void)
     if (!xemu_net_dns_fallback_used(&count, &name, &timed_out)) {
         return;
     }
-    snprintf(note, sizeof(note),
-             " XBemu answered Xbox Live for the console itself (%s: %s).", name,
+#define DNS_NOTE "XBemu answered Xbox Live for the console itself (%s: %s)."
+    snprintf(note, sizeof(note), " " DNS_NOTE, name,
              timed_out ? "no answer" : "wrong answer");
+    note_tr[0] = ' '; /* after the result, like the English one */
+    snprintf(note_tr + 1, sizeof(note_tr) - 1, xemu_i18n_tr(DNS_NOTE), name,
+             xemu_i18n_tr(timed_out ? "no answer" : "wrong answer"));
+#undef DNS_NOTE
 
     check_init();
     qemu_mutex_lock(&lock);
     changed = strcmp(note, dns_note) != 0;
     if (changed) {
         strcpy(dns_note, note);
+        strcpy(dns_note_tr, note_tr);
     }
     qemu_mutex_unlock(&lock);
     if (changed) {

@@ -1,0 +1,115 @@
+--- a/imgui.h
++++ b/imgui.h
+@@ -320,6 +320,15 @@
+ // (Note that ImGui:: being a namespace, you can add extra ImGui:: functions in your own separate file. Please don't modify imgui source files!)
+ //-----------------------------------------------------------------------------
+ 
++// xemu: translation of drawn text. The app sets GImGuiTranslate; it returns
++// the translation of [text, text_end) (text_end may be NULL) with *out_end
++// set, or NULL to keep the text. Text is swapped where fonts draw and measure
++// it, so labels keep their English IDs. GImGuiTranslateOff > 0 turns it off
++// (text the user types).
++typedef const char* (*ImGuiTranslateFn)(const char* text, const char* text_end, const char** out_end);
++extern IMGUI_API ImGuiTranslateFn GImGuiTranslate;
++extern IMGUI_API int GImGuiTranslateOff;
++
+ namespace ImGui
+ {
+     // Context creation and access
+--- a/imgui_draw.cpp
++++ b/imgui_draw.cpp
+@@ -4040,8 +4040,28 @@
+     return s;
+ }
+ 
++ImGuiTranslateFn GImGuiTranslate = NULL;
++int GImGuiTranslateOff = 0;
++
++// xemu: the translation of a piece of text, or the text itself
++static inline void ImTranslateText(const char** text_begin, const char** text_end)
++{
++    if (!GImGuiTranslate || GImGuiTranslateOff > 0 || *text_begin == *text_end)
++        return;
++    const char* end = NULL;
++    const char* t = GImGuiTranslate(*text_begin, *text_end, &end);
++    if (t)
++    {
++        *text_begin = t;
++        *text_end = end;
++    }
++}
++
+ ImVec2 ImFont::CalcTextSizeA(float size, float max_width, float wrap_width, const char* text_begin, const char* text_end, const char** remaining)
+ {
++    // xemu: a caller that wants a position inside the text gets the text as given
++    if (!remaining)
++        ImTranslateText(&text_begin, &text_end);
+     if (!text_end)
+         text_end = text_begin + strlen(text_begin); // FIXME-OPT: Need to avoid this.
+ 
+@@ -4136,6 +4156,7 @@
+ // Note: as with every ImDrawList drawing function, this expects that the font atlas texture is bound.
+ void ImFont::RenderText(ImDrawList* draw_list, float size, const ImVec2& pos, ImU32 col, const ImVec4& clip_rect, const char* text_begin, const char* text_end, float wrap_width, bool cpu_fine_clip)
+ {
++    ImTranslateText(&text_begin, &text_end);
+     // Align to be pixel perfect
+     float x = IM_TRUNC(pos.x);
+     float y = IM_TRUNC(pos.y);
+--- a/imgui_widgets.cpp
++++ b/imgui_widgets.cpp
+@@ -276,8 +276,19 @@
+     va_end(args);
+ }
+ 
++// xemu: the translation of a format string, or the format itself
++static inline const char* ImTranslateFmt(const char* fmt)
++{
++    if (!GImGuiTranslate || GImGuiTranslateOff > 0)
++        return fmt;
++    const char* end = NULL;
++    const char* t = GImGuiTranslate(fmt, NULL, &end);
++    return t ? t : fmt;
++}
++
+ void ImGui::TextV(const char* fmt, va_list args)
+ {
++    fmt = ImTranslateFmt(fmt);
+     ImGuiWindow* window = GetCurrentWindow();
+     if (window->SkipItems)
+         return;
+@@ -348,6 +359,7 @@
+ // Add a label+text combo aligned to other label+value widgets
+ void ImGui::LabelTextV(const char* label, const char* fmt, va_list args)
+ {
++    fmt = ImTranslateFmt(fmt);
+     ImGuiWindow* window = GetCurrentWindow();
+     if (window->SkipItems)
+         return;
+@@ -385,6 +397,7 @@
+ // Text with a little bullet aligned to the typical tree node.
+ void ImGui::BulletTextV(const char* fmt, va_list args)
+ {
++    fmt = ImTranslateFmt(fmt);
+     ImGuiWindow* window = GetCurrentWindow();
+     if (window->SkipItems)
+         return;
+@@ -5287,7 +5300,9 @@
+         if (is_multiline || (buf_display_end - buf_display) < buf_display_max_length)
+         {
+             ImU32 col = GetColorU32(is_displaying_hint ? ImGuiCol_TextDisabled : ImGuiCol_Text);
++            if (!is_displaying_hint) GImGuiTranslateOff++; // xemu: typed text as typed
+             draw_window->DrawList->AddText(g.Font, g.FontSize, draw_pos - draw_scroll, col, buf_display, buf_display_end, 0.0f, is_multiline ? NULL : &clip_rect);
++            if (!is_displaying_hint) GImGuiTranslateOff--;
+         }
+ 
+         // Draw blinking cursor
+@@ -5327,7 +5342,9 @@
+ 
+             const ImVec2 draw_scroll = /*state ? ImVec2(state->Scroll.x, 0.0f) :*/ ImVec2(0.0f, 0.0f); // Preserve scroll when inactive?
+             ImU32 col = GetColorU32(is_displaying_hint ? ImGuiCol_TextDisabled : ImGuiCol_Text);
++            if (!is_displaying_hint) GImGuiTranslateOff++; // xemu: typed text as typed
+             draw_window->DrawList->AddText(g.Font, g.FontSize, draw_pos - draw_scroll, col, buf_display, buf_display_end, 0.0f, is_multiline ? NULL : &clip_rect);
++            if (!is_displaying_hint) GImGuiTranslateOff--;
+         }
+     }
+ 

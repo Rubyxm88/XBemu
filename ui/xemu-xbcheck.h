@@ -36,7 +36,8 @@ typedef struct XbCheckItem {
     const char *name;
     XbCheckState state;
     XbCheckAction action;
-    char detail[XBCHECK_DETAIL_LEN];
+    char detail[XBCHECK_DETAIL_LEN];    /* English, for the log */
+    char detail_tr[XBCHECK_DETAIL_LEN]; /* shown, in XBemu's language */
     char sha256[65]; /* for XBCHECK_ACTION_COPY_SHA256 */
 } XbCheckItem;
 

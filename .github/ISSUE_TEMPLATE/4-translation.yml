@@ -1,0 +1,37 @@
+name: Translation problem
+description: Something in XBemu's menus reads wrong, is cut off or is still in English
+title: "Translation: short description"
+labels: [translation]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks! XBemu's menus follow your console's language (the XBL Dashboard sets it). The translations are new, so every report helps.
+        Help > Report a translation problem in XBemu fills this in for you. Write in your own language or in English.
+  - type: input
+    id: language
+    attributes:
+      label: Language
+      placeholder: Deutsch (de)
+    validations:
+      required: true
+  - type: input
+    id: build
+    attributes:
+      label: XBemu build
+      description: At the right of the menu bar.
+      placeholder: v0.1 build 4
+  - type: input
+    id: system
+    attributes:
+      label: Your computer
+      placeholder: Windows
+  - type: textarea
+    id: details
+    attributes:
+      label: What reads wrong, and where?
+      description: The menu or window, the text you see, and a better wording if you have one. Screenshots (F12) help; drag them into this box.
+      placeholder: |
+        Sound menu: "Lautstärke Bewegung" should be "Lautstärke der Schritte".
+    validations:
+      required: true

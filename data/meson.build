@@ -6,6 +6,7 @@ pfiles = [
   'xemu_64x64.png',
   'xbemu_logo.png',
   'xbemu_icon_64.png',
+  'xbemu-lang.tsv',
   'abxy.ttf',
   'Roboto-Medium.ttf',
   'RobotoCondensed-Regular.ttf',

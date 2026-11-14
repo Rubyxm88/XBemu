@@ -22,6 +22,7 @@
 // (at your option) any later version.
 //
 #include "common.hh"
+#include "i18n.hh"
 #include "self-update.hh"
 #include "versions.hh"
 #include "build-number.hh"
@@ -340,7 +341,7 @@ gpointer SelfUpdateWindow::CheckThread(gpointer opaque)
         if (err) {
             self->m_error = error_get_pretty(err);
         } else {
-            self->m_error = "GitHub answered " + std::to_string(code) + ".";
+            self->m_error = TrF("GitHub answered %ld.", (long)code);
         }
     } else if (build <= 0 || sha256.size() != 64) {
         self->m_state = CHECK_FAILED;
@@ -407,12 +408,12 @@ gpointer SelfUpdateWindow::BuildInfoThread(gpointer opaque)
     bool ok = false;
     if (code == 404) {
         self->m_state = CHECK_FAILED;
-        self->m_error = "Build " + BuildText(build) +
-                        " has no " PLATFORM " version.";
+        self->m_error = TrF("Build %s has no %s version.",
+                            BuildText(build).c_str(), PLATFORM);
     } else if (code != 200) {
         self->m_state = CHECK_FAILED;
         self->m_error = err ? error_get_pretty(err)
-                            : "GitHub answered " + std::to_string(code) + ".";
+                            : TrF("GitHub answered %ld.", (long)code);
     } else if (BuildFromFields(Field(text, "build"), Field(text, "sub"),
                                Field(text, "beta")) != build ||
                sha256.size() != 64) {

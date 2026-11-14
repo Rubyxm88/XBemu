@@ -7,6 +7,7 @@
 // (at your option) any later version.
 //
 #include "common.hh"
+#include "i18n.hh"
 #include "oxos-update.hh"
 #include "actions.hh"
 #include "font-manager.hh"
@@ -453,8 +454,8 @@ void OxosWindow::AfterCheck()
     Release r;
     if (!Newest(&r) || cur.empty() || !Newer(r.tag, cur)) {
         if (asked) {
-            std::string msg = "OXOS " + (cur.empty() ? r.tag : cur) +
-                              " is the newest.";
+            std::string msg = TrF("OXOS %s is the newest.",
+                                  (cur.empty() ? r.tag : cur).c_str());
             xemu_queue_notification(msg.c_str());
         }
         return;
@@ -522,8 +523,8 @@ gpointer OxosWindow::DownloadThread(gpointer opaque)
         }
         // The full size image (1 MB); a 256 KB one also boots
         if (!bin || (bin_len != 1024 * 1024 && bin_len != 256 * 1024)) {
-            error = "The release has no BIOS file XBemu can use (" + want +
-                    "). Nothing was changed.";
+            error = TrF("The release has no BIOS file XBemu can use (%s). "
+                        "Nothing was changed.", want.c_str());
         }
     }
     g_byte_array_free(data, TRUE);
@@ -535,12 +536,12 @@ gpointer OxosWindow::DownloadThread(gpointer opaque)
         GError *gerr = NULL;
         if (!g_file_set_contents(part.c_str(), (const gchar *)bin, bin_len,
                                  &gerr)) {
-            error = std::string("It could not be saved: ") + gerr->message;
+            error = TrF("It could not be saved: %s", gerr->message);
             g_error_free(gerr);
         } else {
             g_remove(target.c_str());
             if (g_rename(part.c_str(), target.c_str()) != 0) {
-                error = "It could not be saved in " + BiosDir() + ".";
+                error = TrF("It could not be saved in %s.", BiosDir().c_str());
                 g_remove(part.c_str());
             }
         }
@@ -638,7 +639,7 @@ void OxosWindow::DrawOffer()
         return;
     }
     std::string tag = m_offer.tag, cur = CurrentTag();
-    Heading("OXOS " + tag + " is out");
+    Heading(TrF("OXOS %s is out", tag.c_str()));
     ImGui::Text("You have OXOS %s.", cur.c_str());
     ImGui::Spacing();
     if (IsTested(m_notes, tag)) {
@@ -682,13 +683,13 @@ void OxosWindow::DrawProgress()
     }
     int s = m_status;
     if (s == DOWNLOADING) {
-        Heading("Downloading OXOS " + m_offer.tag);
+        Heading(TrF("Downloading OXOS %s", m_offer.tag.c_str()));
         ImGui::ProgressBar(m_progress / 100.0f, ImVec2(-1, 0));
     } else if (s == DOWNLOADED) {
         UseTag(m_downloaded, true);
         m_prompt = RESTART;
     } else {
-        Heading("OXOS " + m_offer.tag + " was not installed");
+        Heading(TrF("OXOS %s was not installed", m_offer.tag.c_str()));
         ImGui::TextColored(bad_color, "%s", m_error.c_str());
         ImGui::TextWrapped("The console keeps OXOS %s.", CurrentTag().c_str());
         ImGui::Spacing();
@@ -710,7 +711,7 @@ void OxosWindow::DrawRestart()
         return;
     }
     std::string tag = CurrentTag();
-    Heading("OXOS " + tag + " is ready");
+    Heading(TrF("OXOS %s is ready", tag.c_str()));
     ImGui::TextWrapped("Restart XBemu to start the console with it.");
     GameRunningWarning();
     ImGui::Spacing();
@@ -723,8 +724,8 @@ void OxosWindow::DrawRestart()
     if (PromptButton("Later")) {
         m_prompt = NONE;
         m_status = IDLE;
-        std::string msg = "OXOS " + tag + " starts the next time you open "
-                          "XBemu.";
+        std::string msg = TrF("OXOS %s starts the next time you open "
+                              "XBemu.", tag.c_str());
         xemu_queue_notification(msg.c_str());
     }
     EndPrompt();
@@ -736,7 +737,7 @@ void OxosWindow::DrawSwitch()
         return;
     }
     std::string tag = m_switch_to, cur = CurrentTag();
-    Heading("Switch to OXOS " + tag + "?");
+    Heading(TrF("Switch to OXOS %s?", tag.c_str()));
     ImGui::Text("The console runs OXOS %s now.", cur.c_str());
     ImGui::Spacing();
     std::string why;
@@ -771,12 +772,13 @@ void OxosWindow::DrawRollback()
     if (!BeginPrompt("OXOS BIOS", 460)) {
         return;
     }
-    Heading("Did OXOS " + tag + " work?");
+    Heading(TrF("Did OXOS %s work?", tag.c_str()));
     ImGui::TextWrapped("You switched to OXOS %s and XBemu was closed soon "
                        "after. If a game froze or did not start, go back to "
                        "OXOS %s.", tag.c_str(), prev.c_str());
     ImGui::Spacing();
-    std::string back = "Go back to " + prev, keep = "Keep " + tag;
+    std::string back = TrF("Go back to %s", prev.c_str()),
+                keep = TrF("Keep %s", tag.c_str());
     if (PromptButton(back.c_str(), "back")) {
         m_prompt = NONE;
         UseTag(prev, false);
@@ -898,7 +900,7 @@ void OxosWindow::Menu()
     if (!m_releases.empty() && Newest(&r) && !cur.empty() &&
         Newer(r.tag, cur) &&
         !g_file_test(BiosFile(r.tag).c_str(), G_FILE_TEST_EXISTS)) {
-        std::string label = "Update to OXOS " + r.tag + "...";
+        std::string label = TrF("Update to OXOS %s...", r.tag.c_str());
         if (ImGui::MenuItem(label.c_str(), NULL, false, !busy)) {
             m_offer = r;
             m_prompt = OFFER;

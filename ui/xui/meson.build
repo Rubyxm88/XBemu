@@ -4,6 +4,7 @@ xemu_ss.add(files(
   'compat.cc',
   'dash-install.cc',
   'disc-refresh.cc',
+  'i18n.cc',
   'debug.cc',
   'font-manager.cc',
   'gl-helpers.cc',

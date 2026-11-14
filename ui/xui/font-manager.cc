@@ -32,6 +32,18 @@ FontManager::FontManager()
     m_last_pixel_density = 1;
 }
 
+// The letters of the languages XBemu is translated to: Latin-1 and Latin
+// Extended-A (French oe, ...), the typographic dashes, quotes and ellipsis,
+// and the euro sign
+static const ImWchar *TextGlyphRanges()
+{
+    static const ImWchar ranges[] = {
+        0x0020, 0x00FF, 0x0100, 0x017F, 0x2010, 0x2027,
+        0x2030, 0x203A, 0x20AC, 0x20AC, 0,
+    };
+    return ranges;
+}
+
 void FontManager::Rebuild()
 {
     ImGuiIO &io = ImGui::GetIO();
@@ -47,10 +59,10 @@ void FontManager::Rebuild()
         config.RasterizerDensity = pixel_density;
         m_default_font = io.Fonts->AddFontFromMemoryTTF(
             (void *)Roboto_Medium_data, Roboto_Medium_size,
-            16.0f * scale, &config);
+            16.0f * scale, &config, TextGlyphRanges());
         m_menu_font_small = io.Fonts->AddFontFromMemoryTTF(
             (void *)RobotoCondensed_Regular_data, RobotoCondensed_Regular_size,
-            22.0f * scale, &config);
+            22.0f * scale, &config, TextGlyphRanges());
     }
     {
         ImFontConfig config;
@@ -71,10 +83,10 @@ void FontManager::Rebuild()
         config.RasterizerDensity = pixel_density;
         m_menu_font_medium = io.Fonts->AddFontFromMemoryTTF(
             (void *)RobotoCondensed_Regular_data, RobotoCondensed_Regular_size,
-            26.0f * scale, &config);
+            26.0f * scale, &config, TextGlyphRanges());
         m_menu_font = io.Fonts->AddFontFromMemoryTTF(
             (void *)RobotoCondensed_Regular_data, RobotoCondensed_Regular_size,
-            34.0f * scale, &config);
+            34.0f * scale, &config, TextGlyphRanges());
     }
     {
         ImFontConfig config;

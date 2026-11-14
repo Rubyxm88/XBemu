@@ -12,6 +12,8 @@
 #include "ui/xemu-settings.h"
 #include "xemu-version.h"
 #include "xemu-xbe.h"
+#include "versions.hh"
+#include "../xbemu-brand.h"
 
 extern "C" {
 #include "qapi/qapi-commands-machine.h"
@@ -19,9 +21,11 @@ extern "C" {
 }
 
 static constexpr char base_compatibility_url[] = "https://xemu.app/titles/";
+// XBemu: reports go to XBemu's own repository and its "Problem with one
+// game" form (.github/ISSUE_TEMPLATE/2-game.yml), not to upstream xemu
 static constexpr char base_issue_url[] =
-    "https://github.com/xemu-project/xemu/issues/new?template=";
-static constexpr char title_issue_template[] = "title-issue.yml";
+    "https://github.com/" XBEMU_REPO "/issues/new?template=";
+static constexpr char title_issue_template[] = "2-game.yml";
 
 static std::string BuildTitleInformation(struct xbe *xbe)
 {
@@ -176,10 +180,11 @@ static std::string BuildGitHubTitleIssueURL(struct xbe *xbe)
         }
     };
 
-    append_param("&game-title=", BuildTitleInformation(xbe));
-    append_param("&xemu-version=", BuildXemuInformation());
-    append_param("&system-information=", BuildSystemInformation());
-    append_param("&additional-context=", BuildAdditionalInformation());
+    // The form's field ids: game, build, logs
+    append_param("&game=", BuildTitleInformation(xbe));
+    append_param("&build=", InstalledBuildText());
+    append_param("&logs=", BuildXemuInformation() + BuildSystemInformation() +
+                               BuildAdditionalInformation());
 
     curl_easy_cleanup(curl);
 

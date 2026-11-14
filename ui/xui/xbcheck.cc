@@ -265,7 +265,7 @@ void XbCheckWindow::Draw()
             ImGui::Indent(ImGui::CalcTextSize("  OK   ").x);
             ImGui::PushStyleColor(ImGuiCol_Text,
                                   ImVec4(0.8f, 0.8f, 0.8f, 1.0f));
-            ImGui::TextWrapped("%s", items[i].detail);
+            ImGui::TextWrapped("%s", items[i].detail_tr);
             ImGui::PopStyleColor();
             if (items[i].action == XBCHECK_ACTION_OPEN_GAMES_FOLDER) {
                 ImGui::PushID(i);

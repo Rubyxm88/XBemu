@@ -17,6 +17,7 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 #include "common.hh"
+#include "i18n.hh"
 #include "scene-manager.hh"
 #include "widgets.hh"
 #include "main-menu.hh"
@@ -842,9 +843,10 @@ void MainMenuDisplayView::Draw()
 void MainMenuAudioView::Draw()
 {
     SectionTitle("Volume");
-    char buf[32];
-    snprintf(buf, sizeof(buf), "Limit output volume (%d%%)",
-             (int)lroundf(g_config.audio.volume_limit * 100.0f));
+    char buf[96];
+    snprintf(buf, sizeof(buf), "%s",
+             TrF("Limit output volume (%d%%)",
+                 (int)lroundf(g_config.audio.volume_limit * 100.0f)).c_str());
     Slider("Output volume limit", &g_config.audio.volume_limit, buf);
 
     SectionTitle("Quality");

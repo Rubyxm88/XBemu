@@ -17,6 +17,7 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 #include "common.hh"
+#include "i18n.hh"
 #include "actions.hh"
 #include "misc.hh"
 #include "xemu-hud.h"
@@ -244,7 +245,7 @@ void ActionActivateBoundSnapshot(int slot, bool save)
     assert(slot < 4 && slot >= 0);
     const char *snapshot_name = *(g_snapshot_shortcut_index_key_map[slot]);
     if (!snapshot_name || !(snapshot_name[0])) {
-        char *msg = g_strdup_printf("F%d is not bound to a snapshot", slot + 5);
+        char *msg = g_strdup(TrF("F%d is not bound to a snapshot", slot + 5).c_str());
         xemu_queue_notification(msg);
         g_free(msg);
         return;

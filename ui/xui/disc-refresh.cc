@@ -32,6 +32,7 @@
 #include <vector>
 #include <filesystem>
 #include "common.hh"
+#include "i18n.hh"
 #include "disc-refresh.hh"
 #include "font-manager.hh"
 #include "gl-helpers.hh"
@@ -524,12 +525,17 @@ void DiscRefreshDraw()
         y += CentredText(dl, f_title, cx, y, Col(110, 220, 120, a),
                          "Disc loaded");
     } else {
+        // The dots count up: the translation without its own dots
+        std::string word = Tr("Loading disc...");
+        if (word.size() > 3 && !word.compare(word.size() - 3, 3, "...")) {
+            word.resize(word.size() - 3);
+        }
         const char *full = "Loading disc...";
         ImVec2 sz = f_title->CalcTextSizeA(f_title->FontSize, FLT_MAX, 0,
                                            full);
         int dots = (int)(t * 2.5) % 4;
-        char buf[32];
-        snprintf(buf, sizeof(buf), "Loading disc%.*s", dots, "...");
+        char buf[96];
+        snprintf(buf, sizeof(buf), "%s%.*s", word.c_str(), dots, "...");
         dl->AddText(f_title, f_title->FontSize, ImVec2(cx - sz.x / 2, y),
                     Col(205, 214, 208, a), buf);
         y += sz.y;
