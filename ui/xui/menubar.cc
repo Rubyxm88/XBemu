@@ -561,10 +561,21 @@ static void PlayMenu()
     std::error_code ec;
     if (g_config.general.games_dir[0] &&
         std::filesystem::is_directory(games_dir, ec)) {
-        for (const auto &file :
-             std::filesystem::directory_iterator(games_dir, ec)) {
-            const auto &path = file.path();
-            if (path.extension() == ".iso" || path.extension() == ".xiso") {
+        // Images in the games folder and one folder down (downloads often
+        // come in a folder of their own)
+        for (auto it = std::filesystem::recursive_directory_iterator(
+                 games_dir, ec);
+             it != std::filesystem::recursive_directory_iterator();
+             it.increment(ec)) {
+            if (ec) {
+                break;
+            }
+            if (it.depth() >= 1) {
+                it.disable_recursion_pending();
+            }
+            const auto &path = it->path();
+            if (it->is_regular_file(ec) &&
+                (path.extension() == ".iso" || path.extension() == ".xiso")) {
                 games.insert({ path.stem().string(), path.string() });
             }
         }

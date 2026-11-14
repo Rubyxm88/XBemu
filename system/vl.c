@@ -3163,10 +3163,13 @@ void qemu_init(int argc, char **argv)
     // Always populate DVD drive. If disc path is the empty string, drive is
     // connected but no media present.
     fake_argv[fake_argc++] = strdup("-drive");
-    char *escaped_dvd_path = strdup_double_commas(dvd_path);
+    // A redump image opens at its game partition (a json: raw spec)
+    char *drive_file = xemu_xbonline_disc_drive_file(dvd_path);
+    char *escaped_dvd_path = strdup_double_commas(drive_file);
     fake_argv[fake_argc++] = g_strdup_printf("index=1,media=cdrom,file=%s",
         escaped_dvd_path);
     free(escaped_dvd_path);
+    g_free(drive_file);
 
     fake_argv[fake_argc++] = strdup("-display");
     fake_argv[fake_argc++] = strdup("xemu");

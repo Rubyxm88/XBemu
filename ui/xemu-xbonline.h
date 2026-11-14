@@ -209,6 +209,11 @@ const char *xemu_xbonline_setup_disc(void);
 /* Whether the path names one of the dashboard or update discs, not a game */
 bool xemu_xbonline_is_system_disc(const char *path);
 
+/* What the DVD drive opens for a disc image (g_free it). A redump image (the
+ * whole disc, video partition first) gives a json: raw spec that starts at
+ * its game partition, which is all an Xbox drive shows; others their path. */
+char *xemu_xbonline_disc_drive_file(const char *path);
+
 /* The game disc held back at start so the XBL Dashboard boots first; it
  * goes in the tray once the dashboard is up. NULL when there is none. */
 void xemu_xbonline_defer_disc(const char *path);

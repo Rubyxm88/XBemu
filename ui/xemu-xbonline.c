@@ -721,6 +721,52 @@ bool xemu_xbonline_is_system_disc(const char *path)
            g_str_has_suffix(path, XEMU_XBONLINE_RS3_UPDATE_DISC);
 }
 
+char *xemu_xbonline_disc_drive_file(const char *path)
+{
+    /* Redump layout of an original Xbox disc: the game partition starts
+     * 0x18300000 bytes in, after the video partition */
+    static const uint64_t game_partition = 0x18300000ULL;
+    uint8_t vd[20];
+    bool redump = false;
+    FILE *f;
+
+    if (!path || !path[0]) {
+        return g_strdup(path ? path : "");
+    }
+    f = qemu_fopen(path, "rb");
+    if (f) {
+        bool plain = fseeko(f, 32 * 2048, SEEK_SET) == 0 &&
+                     fread(vd, 1, sizeof(vd), f) == sizeof(vd) &&
+                     !memcmp(vd, "MICROSOFT*XBOX*MEDIA", 20);
+        redump = !plain &&
+                 fseeko(f, game_partition + 32 * 2048, SEEK_SET) == 0 &&
+                 fread(vd, 1, sizeof(vd), f) == sizeof(vd) &&
+                 !memcmp(vd, "MICROSOFT*XBOX*MEDIA", 20);
+        fclose(f);
+    }
+    if (!redump) {
+        return g_strdup(path);
+    }
+
+    GString *json = g_string_new("json:{\"driver\":\"raw\",\"offset\":");
+    g_string_append_printf(json, "%" PRIu64 ",\"file\":{\"driver\":\"file\","
+                           "\"filename\":\"", game_partition);
+    for (const char *c = path; *c; c++) {
+        if (*c == '"' || *c == '\\') {
+            g_string_append_c(json, '\\');
+            g_string_append_c(json, *c);
+        } else if ((unsigned char)*c < 0x20) {
+            g_string_append_printf(json, "\\u%04x", (unsigned char)*c);
+        } else {
+            g_string_append_c(json, *c);
+        }
+    }
+    g_string_append(json, "\"}}");
+    fprintf(stderr, "disc: %s is a redump image, the drive reads its game "
+            "partition\n", path);
+    return g_string_free(json, false);
+}
+
 char *xemu_xbonline_pick_game(const char *games_dir)
 {
     GDir *dir;

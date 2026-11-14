@@ -64,9 +64,7 @@ void ActionLoadDisc(void)
 void ActionLoadDiscFile(const char *file_path)
 {
     Error *err = NULL;
-    // Like a player: the tray opens before a different disc goes in, or
-    // the dashboard does not see the new one
-    xemu_change_disc(file_path, &err);
+    xemu_load_disc(file_path, &err);
 
     if (err) {
         xemu_queue_error_message(error_get_pretty(err));

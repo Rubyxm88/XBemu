@@ -237,7 +237,6 @@ static char **disc_swap_paths;
 static int disc_swap_next;
 static int64_t disc_swap_due_us;
 void xemu_load_disc(const char *path, Error **errp);
-void xemu_change_disc(const char *path, Error **errp);
 
 static RecentLine recent[RECENT_LINES];
 static int recent_next;
@@ -1117,7 +1116,7 @@ void xemu_diag_poll(void)
         const char *path = disc_swap_paths[disc_swap_next];
         Error *err = NULL;
         fprintf(stderr, "disc swap test: %s\n", path);
-        xemu_change_disc(path, &err);
+        xemu_load_disc(path, &err);
         if (err) {
             fprintf(stderr, "disc swap test: %s\n", error_get_pretty(err));
             error_free(err);

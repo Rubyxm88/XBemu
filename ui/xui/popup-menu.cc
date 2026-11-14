@@ -387,10 +387,19 @@ public:
         std::filesystem::path directory(g_config.general.games_dir);
         std::error_code ec;
         if (std::filesystem::is_directory(directory, ec)) {
-            for (const auto &file :
-                 std::filesystem::directory_iterator(directory)) {
-                const auto &file_path = file.path();
-                if (std::filesystem::is_regular_file(file_path) &&
+            // The games folder and one folder down
+            for (auto it = std::filesystem::recursive_directory_iterator(
+                     directory, ec);
+                 it != std::filesystem::recursive_directory_iterator();
+                 it.increment(ec)) {
+                if (ec) {
+                    break;
+                }
+                if (it.depth() >= 1) {
+                    it.disable_recursion_pending();
+                }
+                const auto &file_path = it->path();
+                if (it->is_regular_file(ec) &&
                     (file_path.extension() == ".iso" ||
                      file_path.extension() == ".xiso")) {
                     sorted_file_names.insert(

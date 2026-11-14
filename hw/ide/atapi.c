@@ -1348,17 +1348,17 @@ void ide_atapi_cmd(IDEState *s)
      * GET_EVENT_STATUS_NOTIFICATION to detect such tray open/close
      * states rely on this behavior.
      */
+    /*
+     * xemu: the Xbox sees the tray move through the SMC, and its kernel
+     * retries a unit attention but reports "medium not present" as no disc.
+     * The XBL Dashboard checks the disc once per button press, so the
+     * ejected state made a new disc show as "no disc" until a second press.
+     * Report only the media change.
+     */
     if (!(cmd->flags & ALLOW_UA) &&
         !s->tray_open && blk_is_inserted(s->blk) && s->cdrom_changed) {
-
-        if (s->cdrom_changed == 1) {
-            ide_atapi_cmd_error(s, NOT_READY, ASC_MEDIUM_NOT_PRESENT);
-            s->cdrom_changed = 2;
-        } else {
-            ide_atapi_cmd_error(s, UNIT_ATTENTION, ASC_MEDIUM_MAY_HAVE_CHANGED);
-            s->cdrom_changed = 0;
-        }
-
+        ide_atapi_cmd_error(s, UNIT_ATTENTION, ASC_MEDIUM_MAY_HAVE_CHANGED);
+        s->cdrom_changed = 0;
         return;
     }
 
