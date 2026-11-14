@@ -154,29 +154,6 @@ void ActionPoll(void)
             InsertAfterRestart(disc);
         }
     }
-    // A game went back to the dashboard with its disc still in: the XBL
-    // Dashboard starts without noticing a disc that was already in, so its
-    // Disc tile looks empty. Once it is up, show the disc as a load does.
-    // (Not when XBemu itself took the disc out to put one in: pending.)
-    static bool game_ran, refresh_due;
-    if (xemu_running_title_get(NULL)) {
-        game_ran = true;
-        refresh_due = false;
-    } else if (game_ran) {
-        game_ran = false;
-        refresh_due = true;
-    }
-    if (!pending_insert.empty()) {
-        refresh_due = false;
-    } else if (refresh_due && xemu_running_title_system_ms() > 3500) {
-        refresh_due = false;
-        const char *disc = g_config.sys.files.dvd_path;
-        if (disc && disc[0] && !xemu_xbonline_is_system_disc(disc) &&
-            !DiscRefreshActive() && !xemu_dashinstall_active()) {
-            fprintf(stderr, "game back to the dashboard: show the disc\n");
-            xemu_disc_refresh_start(disc);
-        }
-    }
     if (pending_insert.empty()) {
         return;
     }
