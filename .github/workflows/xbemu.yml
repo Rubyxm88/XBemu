@@ -61,6 +61,7 @@ on:
       - 'xbemu/docs/**'
       - 'xbemu/release-fixes/**'
       - 'xbemu/oxos-versions.txt'
+      - 'xbemu/xbl-server.txt'
   schedule:
     - cron: '23 9 * * *'
   workflow_dispatch:
