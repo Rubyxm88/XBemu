@@ -4197,6 +4197,8 @@ void qemu_init(int argc, char **argv)
     if (xbl_dash_swap_back) {
         xemu_dashinstall_switch_dashboard();
     }
+    // OXOS v0.4.13+ needs C:\OXOS\oxos_settings.ini to find the XBL Dashboard
+    xemu_dashinstall_oxos_settings(g_config.sys.files.flashrom_path);
     if (!preconfig_requested) {
         qmp_x_exit_preconfig(&error_fatal);
     }

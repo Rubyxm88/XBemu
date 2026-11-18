@@ -56,6 +56,15 @@ int xemu_dashinstall_resets(void);
  */
 void xemu_dashinstall_switch_dashboard(void);
 
+/*
+ * With OXOS v0.4.13 or newer as the BIOS (flashrom_path): at the first
+ * reset, before the BIOS reads the hard disk, write C:\OXOS\oxos_settings.ini
+ * if it is missing. Its dashboard list ends with C:\Dashboard\default.xbe,
+ * the XBL Dashboard on an XBemu console, which those versions no longer
+ * look for on their own. A file that is there is left alone.
+ */
+void xemu_dashinstall_oxos_settings(const char *flashrom_path);
+
 #ifdef __cplusplus
 }
 #endif
