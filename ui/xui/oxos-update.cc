@@ -29,8 +29,11 @@ using json = nlohmann::json;
 OxosWindow oxos_window;
 
 // Where the releases are looked up. Tests point these at a local server.
+// GitHub gives at most 100 per page; more pages are asked for while full.
 static const char *const releases_api =
-    "https://api.github.com/repos/kooscode/oxos/releases?per_page=10";
+    "https://api.github.com/repos/kooscode/oxos/releases?per_page=100";
+static const int releases_per_page = 100;
+static const int max_release_pages = 5;
 // Which versions were tried with XBemu: a line per version, such as
 // "v0.4.4 tested" or "v0.4.5 broken: Halo freezes on loading"
 static const char *const versions_list =
@@ -61,7 +64,8 @@ static std::string BiosFile(const std::string &tag)
     return BiosDir() + "/oxos-" + tag + ".bin";
 }
 
-// "v0.4.10" -> {0, 4, 10}
+// "v0.4.10" -> {0, 4, 10}; a letter after a number is one more step, so
+// "v0.4.8b" -> {0, 4, 8, 2} comes after v0.4.8
 static std::vector<int> Ver(const std::string &tag)
 {
     std::vector<int> v;
@@ -72,6 +76,9 @@ static std::vector<int> Ver(const std::string &tag)
         } else if (n >= 0) {
             v.push_back(n);
             n = -1;
+            if (g_ascii_isalpha(c)) {
+                v.push_back(g_ascii_tolower(c) - 'a' + 1);
+            }
         }
     }
     if (n >= 0) {
@@ -232,6 +239,13 @@ static std::map<std::string, std::string> ParseNotes(const char *text)
     return notes;
 }
 
+// The releases found on GitHub, as last fetched, so Machine > BIOS can list
+// them before the next look: "tag zip|bin release|pre url sha256" per line
+static std::string ReleasesPath()
+{
+    return BiosDir() + "/oxos-releases.txt";
+}
+
 static std::map<std::string, std::string> LocalNotes()
 {
     gchar *text = NULL;
@@ -370,47 +384,92 @@ gpointer OxosWindow::CheckThread(gpointer opaque)
     }
     g_byte_array_free(list, TRUE);
 
-    GByteArray *data = g_byte_array_new();
-    code = http_get(Env("XBEMU_OXOS_API", releases_api), data, NULL, &err);
-    if (err) {
-        error_free(err);
-        err = NULL;
-    }
-    bool ok = code == 200;
-    if (ok) {
-        try {
-            json j = json::parse(data->data, data->data + data->len);
-            for (auto &r : j) {
-                if (r.value("draft", false) || r.value("prerelease", false)) {
-                    continue;
-                }
-                std::string tag = r.value("tag_name", "");
-                if (!IsTag(tag)) {
-                    continue;
-                }
-                std::string want = "oxos_" + tag + ".zip";
-                for (auto &a : r["assets"]) {
-                    std::string digest = a.value("digest", "");
-                    if (a.value("name", "") == want &&
-                        digest.compare(0, 7, "sha256:") == 0) {
-                        releases.push_back({ tag,
-                            a.value("browser_download_url", ""),
-                            digest.substr(7) });
-                        break;
+    // Every page of releases (the API gives them newest first)
+    std::string api = Env("XBEMU_OXOS_API", releases_api);
+    bool ok = true;
+    for (int page = 1; ok && page <= max_release_pages; page++) {
+        std::string url = api;
+        if (page > 1) {
+            url += (url.find('?') == std::string::npos ? "?" : "&");
+            url += "page=" + std::to_string(page);
+        }
+        GByteArray *data = g_byte_array_new();
+        code = http_get(url.c_str(), data, NULL, &err);
+        if (err) {
+            error_free(err);
+            err = NULL;
+        }
+        size_t count = 0;
+        // A later page that fails keeps the releases already found
+        ok = code == 200 || page > 1;
+        if (code == 200) {
+            try {
+                json j = json::parse(data->data, data->data + data->len);
+                count = j.size();
+                for (auto &r : j) {
+                    if (r.value("draft", false)) {
+                        continue;
+                    }
+                    std::string tag = r.value("tag_name", "");
+                    if (!IsTag(tag)) {
+                        continue;
+                    }
+                    // Since v0.3.11 the BIOS comes in oxos_<tag>.zip; before
+                    // that it was a release file of its own, bios_<tag>.bin.
+                    // Either way the SHA-256 is the one GitHub gives.
+                    Release found = {};
+                    bool have = false;
+                    for (auto &a : r["assets"]) {
+                        std::string name = a.value("name", "");
+                        std::string digest = a.value("digest", "");
+                        if (digest.compare(0, 7, "sha256:") != 0) {
+                            continue;
+                        }
+                        bool zip = name == "oxos_" + tag + ".zip";
+                        if (zip || (!have && name == "bios_" + tag + ".bin")) {
+                            found = { tag, a.value("browser_download_url", ""),
+                                      digest.substr(7), zip,
+                                      r.value("prerelease", false) };
+                            have = true;
+                        }
+                    }
+                    bool dup = false;
+                    for (auto &e : releases) {
+                        dup = dup || e.tag == tag;
+                    }
+                    if (have && !dup) {
+                        releases.push_back(found);
                     }
                 }
+            } catch (...) {
+                ok = false;
             }
-        } catch (...) {
-            ok = false;
+        }
+        g_byte_array_free(data, TRUE);
+        if (count < (size_t)releases_per_page) {
+            break;
         }
     }
-    g_byte_array_free(data, TRUE);
     std::sort(releases.begin(), releases.end(),
               [](const Release &a, const Release &b) {
                   return Newer(a.tag, b.tag);
               });
     fprintf(stderr, "oxos: check %s, %d releases, %d notes\n",
             ok ? "done" : "failed", (int)releases.size(), (int)notes.size());
+    if (ok) {
+        std::string text, tags;
+        for (auto &r : releases) {
+            tags += " " + r.tag + (r.zip ? "" : "(bin)");
+        }
+        fprintf(stderr, "oxos: on GitHub:%s\n", tags.c_str());
+        for (auto &r : releases) {
+            text += r.tag + (r.zip ? " zip " : " bin ") +
+                    (r.pre ? "pre " : "release ") + r.url + " " + r.digest +
+                    "\n";
+        }
+        g_mkdir_with_parents(BiosDir().c_str(), 0755);
+        g_file_set_contents(ReleasesPath().c_str(), text.c_str(), -1, NULL);
+    }
 
     // Taken over by the main thread in AfterCheck
     self->m_found = releases;
@@ -420,11 +479,35 @@ gpointer OxosWindow::CheckThread(gpointer opaque)
     return NULL;
 }
 
-// The newest release that is not marked broken
+// The releases from the last look, newest first
+static std::vector<OxosWindow::Release> LocalReleases()
+{
+    std::vector<OxosWindow::Release> releases;
+    gchar *text = NULL;
+    if (!g_file_get_contents(ReleasesPath().c_str(), &text, NULL, NULL)) {
+        return releases;
+    }
+    gchar **lines = g_strsplit(text, "\n", -1);
+    for (gchar **l = lines; *l; l++) {
+        gchar **f = g_strsplit(g_strstrip(*l), " ", -1);
+        if (g_strv_length(f) == 5 && IsTag(f[0]) &&
+            (!strcmp(f[1], "zip") || !strcmp(f[1], "bin")) &&
+            strlen(f[4]) == 64) {
+            releases.push_back({ f[0], f[3], f[4], !strcmp(f[1], "zip"),
+                                 !strcmp(f[2], "pre") });
+        }
+        g_strfreev(f);
+    }
+    g_strfreev(lines);
+    g_free(text);
+    return releases;
+}
+
+// The newest release that is not marked broken (nor a pre-release)
 bool OxosWindow::Newest(Release *out)
 {
     for (auto &r : m_releases) {
-        if (!IsBroken(m_notes, r.tag)) {
+        if (!r.pre && !IsBroken(m_notes, r.tag)) {
             *out = r;
             return true;
         }
@@ -432,11 +515,42 @@ bool OxosWindow::Newest(Release *out)
     return false;
 }
 
+const OxosWindow::Release *OxosWindow::Find(const std::string &tag)
+{
+    for (auto &r : m_releases) {
+        if (r.tag == tag) {
+            return &r;
+        }
+    }
+    return NULL;
+}
+
+// What Machine > BIOS lists (Beta): the versions on this computer, then
+// More OXOS versions (on GitHub, not downloaded)
+void OxosWindow::LogMenu()
+{
+    std::vector<std::string> tags = LocalTags();
+    std::string here, more;
+    for (auto &t : tags) {
+        here += " " + t;
+    }
+    int n = 0;
+    for (auto &rel : m_releases) {
+        if (std::find(tags.begin(), tags.end(), rel.tag) == tags.end()) {
+            more += " " + rel.tag;
+            n++;
+        }
+    }
+    fprintf(stderr, "oxos: BIOS menu:%s | more (%d):%s\n", here.c_str(), n,
+            more.c_str());
+}
+
 void OxosWindow::AfterCheck()
 {
     if (m_status == CHECKED) {
         m_releases = m_found;
         m_notes = m_found_notes;
+        LogMenu();
     }
     Keys c = Choice();
     c["checked"] = std::to_string((long long)(g_get_real_time() / 1000000));
@@ -498,7 +612,7 @@ gpointer OxosWindow::DownloadThread(gpointer opaque)
     };
     GByteArray *data = g_byte_array_new();
     Error *err = NULL;
-    int code = http_get(r.zip_url.c_str(), data, &info, &err);
+    int code = http_get(r.url.c_str(), data, &info, &err);
     if (err) {
         error_free(err);
     }
@@ -512,16 +626,44 @@ gpointer OxosWindow::DownloadThread(gpointer opaque)
                                   r.digest.c_str()) != 0) {
         error = "The download was damaged (its SHA-256 does not match the "
                 "release). Nothing was changed.";
+    } else if (!r.zip) {
+        // A bare bios_<tag>.bin release file (up to v0.3.10)
+        bin = malloc(data->len);  // freed by mz_free (free)
+        if (bin) {
+            memcpy(bin, data->data, data->len);
+            bin_len = data->len;
+        }
     } else {
+        // bios_<tag>.bin in the zip: at its top up to v0.4.9, in OXOS/bios/
+        // since v0.4.10b. Found by its name in any folder; the 256 KB image
+        // when there is no full one (never the bios_1.6_ ones).
+        const std::string names[] = { "bios_" + r.tag + ".bin",
+                                      "bios_" + r.tag + "_256k.bin" };
         mz_zip_archive zip = {};
-        std::string want = "bios_" + r.tag + ".bin";
         if (mz_zip_reader_init_mem(&zip, data->data, data->len, 0)) {
-            int i = mz_zip_reader_locate_file(&zip, want.c_str(), NULL, 0);
-            if (i >= 0) {
-                bin = mz_zip_reader_extract_to_heap(&zip, i, &bin_len, 0);
+            mz_uint count = mz_zip_reader_get_num_files(&zip);
+            for (const std::string &want : names) {
+                for (mz_uint i = 0; !bin && i < count; i++) {
+                    char path[512];
+                    if (mz_zip_reader_is_file_a_directory(&zip, i) ||
+                        !mz_zip_reader_get_filename(&zip, i, path,
+                                                    sizeof(path))) {
+                        continue;
+                    }
+                    const char *base = strrchr(path, '/');
+                    base = base ? base + 1 : path;
+                    if (want == base) {
+                        bin = mz_zip_reader_extract_to_heap(&zip, i, &bin_len,
+                                                            0);
+                        fprintf(stderr, "oxos: BIOS in the zip: %s\n", path);
+                    }
+                }
             }
             mz_zip_reader_end(&zip);
         }
+    }
+    if (error.empty()) {
+        std::string want = "bios_" + r.tag + ".bin";
         // The full size image (1 MB); a 256 KB one also boots
         if (!bin || (bin_len != 1024 * 1024 && bin_len != 256 * 1024)) {
             error = TrF("The release has no BIOS file XBemu can use (%s). "
@@ -750,11 +892,27 @@ void OxosWindow::DrawSwitch()
     } else {
         ImGui::TextColored(warn_color, "Not tested with XBemu yet.");
     }
-    ImGui::TextWrapped("XBemu restarts to use it. Your console, Xbox Live "
-                       "sign-in, saves and games are kept.");
+    // A version on GitHub that is not on this computer yet
+    const Release *r = NULL;
+    if (!g_file_test(BiosFile(tag).c_str(), G_FILE_TEST_EXISTS)) {
+        r = Find(tag);
+    }
+    if (r) {
+        ImGui::TextWrapped("XBemu downloads it from github.com/kooscode/oxos, "
+                           "checks the file and restarts to use it. Your "
+                           "console, Xbox Live sign-in, saves and games are "
+                           "kept.");
+    } else {
+        ImGui::TextWrapped("XBemu restarts to use it. Your console, Xbox Live "
+                           "sign-in, saves and games are kept.");
+    }
     GameRunningWarning();
     ImGui::Spacing();
-    if (PromptButton("Switch and restart")) {
+    if (r) {
+        if (PromptButton("Download and switch")) {
+            StartDownload(*r);
+        }
+    } else if (PromptButton("Switch and restart")) {
         m_prompt = NONE;
         UseTag(tag, Newer(tag, cur));
         ActionRestartApp();
@@ -807,6 +965,16 @@ void OxosWindow::Draw()
     if (!m_started && now - m_start_time > 3.0) {
         m_started = true;
         m_notes = LocalNotes();
+        if (BetaChannel()) {
+            m_releases = LocalReleases();
+            LogMenu();
+            // Tests: the Machine > BIOS choice of this version, as if clicked
+            const char *pick = getenv("XBEMU_OXOS_TEST_SWITCH");
+            if (pick && IsTag(pick) && m_prompt == NONE) {
+                m_switch_to = pick;
+                m_prompt = SWITCH;
+            }
+        }
         Keys c = Choice();
         std::string cur = CurrentTag();
         if (!c["pending"].empty()) {
@@ -920,6 +1088,30 @@ void OxosWindow::Menu()
             m_offer = r;
             m_prompt = OFFER;
         }
+    }
+    // Every other version on GitHub, to download and switch to
+    std::vector<const Release *> more;
+    for (auto &rel : m_releases) {
+        if (std::find(tags.begin(), tags.end(), rel.tag) == tags.end()) {
+            more.push_back(&rel);
+        }
+    }
+    if (!more.empty() && ImGui::BeginMenu("More OXOS versions", !busy)) {
+        for (const Release *rel : more) {
+            std::string label = "OXOS " + rel->tag;
+            const char *mark = IsBroken(m_notes, rel->tag) ? "broken" :
+                               IsTested(m_notes, rel->tag) ? "tested" :
+                               rel->pre ? "pre-release" : "";
+            if (ImGui::MenuItem(label.c_str(), mark)) {
+                m_switch_to = rel->tag;
+                m_prompt = SWITCH;
+            }
+            if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort)) {
+                ImGui::SetTooltip("Download this version and switch the "
+                                  "console to it (XBemu restarts).");
+            }
+        }
+        ImGui::EndMenu();
     }
     if (ImGui::MenuItem(s == CHECKING ? "Looking for a new OXOS..." :
                                         "Check for a new OXOS",

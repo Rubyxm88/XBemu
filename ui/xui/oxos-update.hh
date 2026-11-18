@@ -22,6 +22,12 @@
 class OxosWindow
 {
 public:
+    struct Release {
+        std::string tag, url, digest;  // digest: sha256 from GitHub
+        bool zip;      // oxos_<tag>.zip; false: a bare bios_<tag>.bin
+        bool pre;      // a GitHub pre-release: listed, never offered
+    };
+
     OxosWindow();
     void Draw();
     // Machine > BIOS
@@ -32,10 +38,6 @@ public:
 private:
     enum Status { IDLE, CHECKING, CHECKED, DOWNLOADING, DOWNLOADED, FAILED };
     enum Prompt { NONE, OFFER, PROGRESS, RESTART, SWITCH, ROLLBACK };
-
-    struct Release {
-        std::string tag, zip_url, digest;
-    };
 
     std::atomic<int> m_status;
     std::atomic<int> m_progress;   // percent while downloading
@@ -61,12 +63,14 @@ private:
     void StartCheck(bool asked);
     void StartDownload(const Release &r);
     void AfterCheck();
+    void LogMenu();
     void DrawOffer();
     void DrawProgress();
     void DrawRestart();
     void DrawSwitch();
     void DrawRollback();
     bool Newest(Release *out);
+    const Release *Find(const std::string &tag);
 };
 
 extern OxosWindow oxos_window;
