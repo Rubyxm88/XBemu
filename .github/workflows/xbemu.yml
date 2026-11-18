@@ -1008,7 +1008,7 @@ jobs:
         if [ -n "$full" ]; then
           files+=("$full")
         fi
-        if ! out=$(gh release upload "$TAG" "${files[@]}" 2>&1); then
+        if ! out=$(gh release upload "$TAG" "${files[@]}" --clobber 2>&1); then
           echo "::error::$(echo "$out" | tr '\n' ' ')"
           exit 1
         fi
@@ -1264,7 +1264,7 @@ jobs:
         if [ -n "$full" ]; then
           files+=("$full")
         fi
-        if ! out=$(gh release upload "$TAG" "${files[@]}" 2>&1); then
+        if ! out=$(gh release upload "$TAG" "${files[@]}" --clobber 2>&1); then
           echo "::error::$(echo "$out" | tr '\n' ' ')"
           exit 1
         fi
